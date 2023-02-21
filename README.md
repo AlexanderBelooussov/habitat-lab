@@ -1,3 +1,11 @@
+Custom fork of:https://github.com/Ram81/habitat-imitation-baselines
+
+Changes
+* added missing requirements
+  * python-lmdb needs to be installed via conda, pip will not work
+* Fixed issue in habitat-baselines/utils/env_utils.py
+___
+
 # Habitat-Web
 
 Code for training imitation learning agents for [Objectnav](https://arxiv.org/abs/2006.13171) and [Pick-and-Place](https://arxiv.org/abs/2204.03514) in [Habitat](https://aihabitat.org/). This repo is the official code repository for the paper **[Habitat-Web: Learning Embodied Object-Search from Human Demonstrations at Scale](https://arxiv.org/abs/2204.03514)**
@@ -167,7 +175,7 @@ To verify that the data is set up correctly, run:
 
 
 For training the behavior cloning policy on the ObjectGoal Navigation task using the environment based setup:
-    
+
 1. Use the following script for multi-node training
 
   ```bash
@@ -181,7 +189,7 @@ For training the behavior cloning policy on the ObjectGoal Navigation task using
   ```
 
 For training the behavior cloning policy on the Pick-and-Place task using the disk based setup:
-    
+
 1. Use the following script for multi-node training
 
   ```bash
@@ -199,7 +207,7 @@ For training the behavior cloning policy on the Pick-and-Place task using the di
 To evaluate pretrained checkpoint on ObjectGoal Navigation, download the `objectnav_mp3d_v1` dataset from [here](https://github.com/facebookresearch/habitat-lab#task-datasets).
 
 For evaluating a checkpoint on the ObjectGoal Navigation task using the environment based setup:
-    
+
 1. Use the following script if trained using distributed setup
 
   ```bash
@@ -213,7 +221,7 @@ For evaluating a checkpoint on the ObjectGoal Navigation task using the environm
   ```
 
 For evaluating the behavior cloning policy on the Pick-and-Place task using the disk based setup:
-    
+
 1. Use the following script if trained using dristributed setup
 
   ```bash
