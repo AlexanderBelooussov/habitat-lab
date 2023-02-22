@@ -359,9 +359,10 @@ class ILEnvTrainer(BaseRLTrainer):
             self.config.TENSORBOARD_DIR, flush_secs=self.flush_secs
         ) as writer:
             for update in range(self.config.NUM_UPDATES):
+                print("starting episode")
                 profiling_wrapper.on_start_step()
                 profiling_wrapper.range_push("train update")
-                
+
                 self.current_update = update
 
                 if il_cfg.use_linear_lr_decay and update > 0:
@@ -452,7 +453,7 @@ class ILEnvTrainer(BaseRLTrainer):
                         )
                     )
 
-   
+
                 if update == self.config.MODEL.SWITCH_TO_PRED_SEMANTICS_UPDATE - 1:
                     self.save_checkpoint(
                         f"ckpt_gt_best.{count_checkpoints}.pth",
@@ -514,7 +515,7 @@ class ILEnvTrainer(BaseRLTrainer):
         self.envs = construct_envs(config, get_env_class(config.ENV_NAME))
         self._setup_actor_critic_agent(il_cfg, config.MODEL)
 
-        self.agent.load_state_dict(ckpt_dict["state_dict"], strict=True)    
+        self.agent.load_state_dict(ckpt_dict["state_dict"], strict=True)
         self.policy = self.agent.model
         self.policy.eval()
 
