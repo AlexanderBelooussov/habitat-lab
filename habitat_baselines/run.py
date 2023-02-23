@@ -55,6 +55,7 @@ def execute_exp(config: Config, run_type: str) -> None:
     trainer = trainer_init(config)
 
     if run_type == "train":
+        print("starting training")
         trainer.train()
     elif run_type == "eval":
         trainer.eval()
@@ -76,4 +77,5 @@ def run_exp(exp_config: str, run_type: str, opts=None) -> None:
 
 
 if __name__ == "__main__":
+    print("script starting")
     main()
