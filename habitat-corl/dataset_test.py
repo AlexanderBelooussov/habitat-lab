@@ -34,10 +34,12 @@ def main():
     )
     print("generated dataset succesfully!")
 
+    print(f"rollouts\n{rollouts}\n")
+
     observation = envs.reset()
     print(observation)
-    for x in observation:
-        print(x.shape)
+    for i, x in enumerate(observation):
+        print(f"observation[{i}]\n{x}\n")
 
 if __name__ == "__main__":
     main()
