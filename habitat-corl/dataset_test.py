@@ -11,7 +11,6 @@ from habitat_baselines.utils.env_utils import construct_envs
 def main():
     config_path = "habitat-corl/configs/bc_objectnav.yaml"
     config = get_config(config_path, [])
-    print(f"env")
     envs = construct_envs(
         config, get_env_class(config.ENV_NAME)
     )
@@ -25,7 +24,6 @@ def main():
     )
     obs_space = observation_space
 
-    print(f"rollouts")
     rollouts = RolloutStorage(
         bc_config.num_steps,
         envs.num_envs,
@@ -35,6 +33,9 @@ def main():
         config.MODEL.STATE_ENCODER.num_recurrent_layers,
     )
     print("generated dataset succesfully!")
+
+    observation = envs.reset()
+    print(observation)
 
 if __name__ == "__main__":
     main()
