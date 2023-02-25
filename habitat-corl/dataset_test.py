@@ -36,9 +36,8 @@ def main():
 
     observation = envs.reset()
     print(observation)
-    print(observation["rgb"].shape)
-    print(observation["depth"].shape)
-    print(observation["semantic"].shape)
+    for x in observation:
+        print(x.shape)
 
 if __name__ == "__main__":
     main()
