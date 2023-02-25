@@ -18,12 +18,11 @@ def main():
 
     bc_config = config.ORL.BC
 
-    print(f"observation space")
     observation_space = envs.observation_spaces[0]
-    # obs_transforms = get_active_obs_transforms(bc_config)
-    # observation_space = apply_obs_transforms_obs_space(
-    #     observation_space, obs_transforms
-    # )
+    obs_transforms = get_active_obs_transforms(config)
+    observation_space = apply_obs_transforms_obs_space(
+        observation_space, obs_transforms
+    )
     obs_space = observation_space
 
     print(f"rollouts")

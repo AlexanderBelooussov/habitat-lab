@@ -41,11 +41,6 @@ ORL:
     hidden_size: 512
     sync_frac: 0.6
 
-RL:
-  SUCCESS_REWARD: 2.5
-  SLACK_REWARD: -1e-3
-
-
 MODEL:
   ablate_depth: False
   ablate_rgb: False
@@ -90,3 +85,4 @@ MODEL:
     use_prev_action: True
   PROGRESS_MONITOR:
     use: False
+
