@@ -6,8 +6,8 @@ ENV_NAME: NavRLEnv
 SIMULATOR_GPU_ID: 0
 TORCH_GPU_ID: 0
 VIDEO_OPTION: ["disk"]
-TENSORBOARD_DIR: "tb/objectnav/overfitting/rgbd/seed_1/"
-VIDEO_DIR: "video_dir/objectnav/overfitting/rgbd/seed_1/"
+TENSORBOARD_DIR: "/project_ghent/habitat/small/tb/"
+VIDEO_DIR: "/project_ghent/habitat/small/videos/"
 # To evaluate on all episodes, set this to -1
 TEST_EPISODE_COUNT: 10
 EVAL_CKPT_PATH_DIR: "data/new_checkpoints/objectnav/objectnav_env_v4/rgbd/seed_1_70M/ckpt.22.pth"
