@@ -7,6 +7,8 @@ from habitat_baselines.il.env_based.common.rollout_storage import \
     RolloutStorage
 from habitat_baselines.utils.env_utils import construct_envs
 
+import numpy as np
+
 
 def main():
     config_path = "habitat-corl/configs/bc_objectnav.yaml"
@@ -34,12 +36,17 @@ def main():
     )
     print("generated dataset succesfully!")
 
-    print(f"rollouts\n{rollouts}\n")
-
     observation = envs.reset()
-    print(observation)
-    for i, x in enumerate(observation):
-        print(f"observation[{i}]\n{x}\n")
+
+    # take random actions in the environment
+    while True:
+        action = [envs.action_spaces[0].sample() for _ in range(envs.num_envs)]
+        print(f"action\n{action}\n")
+        observations = envs.step(action)
+        print(f"observation\n{observations}\n")
+        if action[0]['action'] == "STOP":
+            break
+
 
 if __name__ == "__main__":
     main()

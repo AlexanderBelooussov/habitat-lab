@@ -130,7 +130,7 @@ class ObjectNavILNet(Net):
             self.gps_embedding = nn.Linear(input_gps_dim, 32)
             rnn_input_size += 32
             logger.info("\n\nSetting up GPS sensor")
-        
+
         if EpisodicCompassSensor.cls_uuid in observation_space.spaces:
             assert (
                 observation_space.spaces[EpisodicCompassSensor.cls_uuid].shape[
@@ -191,7 +191,7 @@ class ObjectNavILNet(Net):
         # recalculating to keep this self-contained instead of depending on training infra
         if "semantic" in observations and "objectgoal" in observations:
             obj_semantic = observations["semantic"].contiguous().flatten(start_dim=1)
-            
+
             if len(observations["objectgoal"].size()) == 3:
                 observations["objectgoal"] = observations["objectgoal"].contiguous().view(
                     -1, observations["objectgoal"].size(2)
@@ -208,7 +208,7 @@ class ObjectNavILNet(Net):
                 idx = idx.squeeze(1)
 
             goal_visible_pixels = (obj_semantic == idx).sum(dim=1)
-            goal_visible_area = torch.true_divide(goal_visible_pixels, obj_semantic.size(-1)).float()
+            goal_visible_area = torch.div(goal_visible_pixels, obj_semantic.size(-1)).float()
             return goal_visible_area.unsqueeze(-1)
 
     def forward(self, observations, rnn_hidden_states, prev_actions, masks):
@@ -258,7 +258,7 @@ class ObjectNavILNet(Net):
             if len(obs_gps.size()) == 3:
                 obs_gps = obs_gps.contiguous().view(-1, obs_gps.size(2))
             x.append(self.gps_embedding(obs_gps))
-        
+
         if EpisodicCompassSensor.cls_uuid in observations:
             obs_compass = observations["compass"]
             if len(obs_compass.size()) == 3:
@@ -284,7 +284,7 @@ class ObjectNavILNet(Net):
                 ((prev_actions.float() + 1) * masks).long().view(-1)
             )
             x.append(prev_actions_embedding)
-        
+
         x = torch.cat(x, dim=1)
         x, rnn_hidden_states = self.state_encoder(x, rnn_hidden_states, masks)
 
@@ -313,5 +313,5 @@ class ObjectNavILPolicy(Policy):
         return cls(
             observation_space=observation_space,
             action_space=action_space,
-            model_config=config.MODEL,            
+            model_config=config.MODEL,
         )

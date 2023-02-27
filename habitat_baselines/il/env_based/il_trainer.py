@@ -359,7 +359,6 @@ class ILEnvTrainer(BaseRLTrainer):
             self.config.TENSORBOARD_DIR, flush_secs=self.flush_secs
         ) as writer:
             for update in range(self.config.NUM_UPDATES):
-                print("starting episode")
                 profiling_wrapper.on_start_step()
                 profiling_wrapper.range_push("train update")
 
