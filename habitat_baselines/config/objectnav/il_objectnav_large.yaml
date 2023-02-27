@@ -1,34 +1,39 @@
-# Note:  Hyperparameters have been changed slightly from
-# the paper to allow for things to easily run on 1 GPU
+# il on a small scene
 
-BASE_TASK_CONFIG_PATH: "configs/tasks/objectnav_mp3d_small.yaml"
-TRAINER_NAME: "bc"
-ENV_NAME: "NavRLEnv"
+BASE_TASK_CONFIG_PATH: "configs/tasks/objectnav_mp3d_il_large.yaml"
+TRAINER_NAME: "il-trainer"
+ENV_NAME: NavRLEnv
 SIMULATOR_GPU_ID: 0
 TORCH_GPU_ID: 0
-#VIDEO_OPTION: []
-VIDEO_OPTION: ["disk", "tensorboard"]  # Can be uncommented to generate videos.
-TENSORBOARD_DIR: "tb"
-VIDEO_DIR: "video_dir"
-TEST_EPISODE_COUNT: -1  # Evaluate on all episodes if -1
-EVAL_CKPT_PATH_DIR: "data/new_checkpoints"
-NUM_PROCESSES: 1  # This was 6 for mp3d and 8 for gibson in the paper
-# Note:  To train the an RGB only model,
-# you may need to use 8 processes with 4 mini batches,
-# If so, the number of updates should be cut in half
-SENSORS: ["DEPTH_SENSOR", "RGB_SENSOR", "SEMANTIC_SENSOR"]
-CHECKPOINT_FOLDER: "data/new_checkpoints"
-NUM_UPDATES: 270000
-LOG_INTERVAL: 25
-CHECKPOINT_INTERVAL: 2000
+VIDEO_OPTION: ["disk"]
+TENSORBOARD_DIR: "/project_ghent/habitat/large/tb/"
+VIDEO_DIR: "/project_ghent/habitat/large/videos/"
+# To evaluate on all episodes, set this to -1
+TEST_EPISODE_COUNT: 10
+EVAL_CKPT_PATH_DIR: "data/new_checkpoints/objectnav/objectnav_env_v4/rgbd/seed_1_70M/ckpt.22.pth"
+SHOW_TOP_DOWN_MAP: False
+NUM_PROCESSES: 1
+CHECKPOINT_FOLDER: "data/new_checkpoints/objectnav/overfitting/rgbd/seed_1"
+OUTPUT_LOG_DIR: data/objectnav/logs
+LOG_INTERVAL: 10
+LOG_METRICS: True
+CHECKPOINT_INTERVAL: 100
+SENSORS: ['RGB_SENSOR', 'SEMANTIC_SENSOR', 'DEPTH_SENSOR']
+RESULTS_DIR: "data/objectnav/results/{split}/{type}"
+EVAL_RESUTLS_DIR: "data/objectnav/results/"
+EVAL_SAVE_RESULTS: True
+EVAL_SAVE_RESULTS_INTERVAL: 50
+NUM_UPDATES: 1000
+EVAL:
+  SPLIT: "val"
 
-ORL:
+IL:
   POLICY:
     name: "ObjectNavILPolicy"
 
   USE_IW: True
   distrib_backend: GLOO
-  BC:
+  BehaviorCloning:
     lr: 0.001
     eps: 1.0e-5
     clip_param: 0.2
@@ -40,6 +45,10 @@ ORL:
     reward_window_size: 50
     hidden_size: 512
     sync_frac: 0.6
+
+RL:
+  SUCCESS_REWARD: 2.5
+  SLACK_REWARD: -1e-3
 
 MODEL:
   ablate_depth: False
@@ -85,4 +94,3 @@ MODEL:
     use_prev_action: True
   PROGRESS_MONITOR:
     use: False
-
