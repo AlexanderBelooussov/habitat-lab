@@ -72,5 +72,6 @@ DATASET:
   DATA_PATH: "data/datasets/objectnav/objectnav_mp3d_70k/{split}/{split}.json.gz"
   SCENES_DIR: "data/scene_datasets/"
   MAX_REPLAY_STEPS: 500
-  CONTENT_SCENES: ["vyrNrziPKCB"] # large scene
+  CONTENT_SCENES: ["uNb9QFRL6hY"] # very large scene
+#  CONTENT_SCENES: ["vyrNrziPKCB"] # very large scene
 
