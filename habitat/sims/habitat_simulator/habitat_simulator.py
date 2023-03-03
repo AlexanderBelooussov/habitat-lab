@@ -346,7 +346,7 @@ class HabitatSim(habitat_sim.Simulator, Simulator):
         self.objid_to_sim_object_mapping = {}
         self.obj_sem_id_to_sem_category_mapping = {}
 
-        self._initialize_THDA_scene()
+        # self._initialize_THDA_scene()
 
     def remove_all_objects(self):
         for id in self.get_existing_object_ids():
@@ -453,7 +453,7 @@ class HabitatSim(habitat_sim.Simulator, Simulator):
                 self.pathfinder, self.navmesh_settings, True
             )
             # logger.info("Inserting objects and recompute navmesh")
-    
+
     def sample_object_state(
         sim,
         object_id,
