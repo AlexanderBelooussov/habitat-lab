@@ -1,9 +1,12 @@
 Custom fork of:https://github.com/Ram81/habitat-imitation-baselines
 
+For master thesis at University of Antwerp: "Offline Reinforcement Learning for Robotic Navigation"
+
 Changes
 * added missing requirements
   * python-lmdb needs to be installed via conda, pip will not work
 * Fixed issue in habitat-baselines/utils/env_utils.py
+* Configs for running on single scenes
 ___
 
 # Habitat-Web
