@@ -72,5 +72,5 @@ DATASET:
   DATA_PATH: "data/datasets/objectnav/objectnav_mp3d_70k/{split}/{split}.json.gz"
   SCENES_DIR: "data/scene_datasets/"
   MAX_REPLAY_STEPS: 500
-  CONTENT_SCENES: ["Vt2qJdWjCF2"] # hallway scene
+  CONTENT_SCENES: ["PuKPg4mmafe"] # hallway scene
 
