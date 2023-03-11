@@ -232,15 +232,23 @@ def main():
     config = habitat.get_config("configs/tasks/pointnav_mp3d_medium.yaml")
 
     scene = args.scene
-    print("Generating dataset for scene: ", scene)
-    config.defrost()
-    if scene in scene_dict:
-        config.DATASET.CONTENT_SCENES = [scene_dict[scene]]
-    if scene == "long_hallway":
-        config.DATASET.DATA_PATH = "data/datasets/pointnav/mp3d/v1/test/test.json.gz"
-    config.DATASET.EPISODES = -1
-    config.freeze()
-    generate_shortest_path_dataset(config)
+
+    if scene == "all":
+        scenes = ["medium", "small", "large", "long_hallway", "xl"]
+    elif scene in scene_dict:
+        scenes = [scene]
+    else:
+        raise ValueError("Invalid scene")
+    for scene in scenes:
+        print("Generating dataset for scene: ", scene)
+        config.defrost()
+        if scene in scene_dict:
+            config.DATASET.CONTENT_SCENES = [scene_dict[scene]]
+        if scene == "long_hallway":
+            config.DATASET.DATA_PATH = "data/datasets/pointnav/mp3d/v1/test/test.json.gz"
+        config.DATASET.EPISODES = -1
+        config.freeze()
+        generate_shortest_path_dataset(config)
 
 if __name__ == "__main__":
     # config = habitat.get_config("configs/tasks/pointnav_mp3d_medium.yaml")
