@@ -1,4 +1,5 @@
 import argparse
+import sys
 from typing import Any
 
 import habitat
@@ -241,6 +242,7 @@ def main():
         raise ValueError("Invalid scene")
     for scene in scenes:
         print("Generating dataset for scene: ", scene)
+        sys.stdout.flush()
         config.defrost()
         if scene in scene_dict:
             config.DATASET.CONTENT_SCENES = [scene_dict[scene]]
