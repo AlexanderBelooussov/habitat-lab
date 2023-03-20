@@ -176,7 +176,7 @@ def generate_shortest_path_dataset(config, train_episodes=None, max_traj_len=100
                 # check if action is stop
                 if action_name == "STOP":
                     break
-            if (episode+1) % 100 == 0:
+            if (episode+1) % 500 == 0:
                 dataset_to_dhf5(dataset, config)
                 dataset = ReplayBuffer()
     dataset_to_dhf5(dataset, config)
