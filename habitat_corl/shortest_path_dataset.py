@@ -87,9 +87,12 @@ def dataset_to_dhf5(dataset: ReplayBuffer, config):
 
 def get_stored_scenes(config):
     file_path = config.DATASET.SP_DATASET_PATH
-    with h5py.File(file_path, "r") as hf:
-        scenes = list(hf.keys())
-    return scenes
+    try:
+        with h5py.File(file_path, "r") as hf:
+            scenes = list(hf.keys())
+        return scenes
+    except:
+        return []
 
 def get_stored_episodes(config, scene=None):
     file_path = config.DATASET.SP_DATASET_PATH
