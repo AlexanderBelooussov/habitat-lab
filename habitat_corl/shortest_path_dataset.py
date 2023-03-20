@@ -85,9 +85,24 @@ def dataset_to_dhf5(dataset: ReplayBuffer, config):
                 grp.create_dataset("dones", data=dataset.dones[ep_idxs], compression="gzip")
 
 
+def get_stored_scenes(config):
+    file_path = config.DATASET.SP_DATASET_PATH
+    with h5py.File(file_path, "r") as hf:
+        scenes = list(hf.keys())
+    return scenes
 
+def get_stored_episodes(config, scene=None):
+    file_path = config.DATASET.SP_DATASET_PATH
+    with h5py.File(file_path, "r") as hf:
+        if scene is None:
+            episodes = {}
+            for scene in hf:
+                episodes[scene] = list(hf[scene].keys())
+        else:
+            episodes = list(hf[scene].keys())
+    return episodes
 
-def generate_shortest_path_dataset(config, train_episodes=None, max_traj_len=1000):
+def generate_shortest_path_dataset(config, train_episodes=None, max_traj_len=1000, overwrite=False):
     if isinstance(config, str):
         config = get_config(config)
 
@@ -97,6 +112,11 @@ def generate_shortest_path_dataset(config, train_episodes=None, max_traj_len=100
         config = config.TASK_CONFIG
 
     config = register_position_sensor(config)
+
+    stored_eps = {}
+    for scene in get_stored_scenes(config):
+        stored_eps[scene] = get_stored_episodes(config, scene)
+
 
     with habitat.Env(config) as env:
         if train_episodes is not None:
@@ -113,6 +133,13 @@ def generate_shortest_path_dataset(config, train_episodes=None, max_traj_len=100
             obs = env.reset()
             episode_id = env.current_episode.episode_id
             scene = env.current_episode.scene_id.split("/")[-1].split(".")[0]
+
+            # check if episode is already stored
+            if not overwrite:
+                stored_episodes = stored_eps.get(scene, [])
+                if episode_id in stored_episodes:
+                    continue
+
             # print("Episode: ", episode)
             for step in range(max_traj_len):
                 dataset.append_observations(obs)
@@ -153,12 +180,7 @@ def generate_shortest_path_dataset(config, train_episodes=None, max_traj_len=100
     return dataset
 
 
-def sample_transitions(
-    config,
-    n_transitions=256,
-    groups=None,
-    datasets=None
-):
+def load_full_dataset(config, groups=None, datasets=None):
     if datasets is None:
         datasets = [
             "states/position",
@@ -166,9 +188,7 @@ def sample_transitions(
             "states/pointgoal",
             "actions"
         ]
-
-
-    transitions = ReplayBuffer()
+    rpb = ReplayBuffer()
     with h5py.File(config.DATASET.SP_DATASET_PATH, "r") as hf:
         if groups is None:
             groups = []
@@ -176,27 +196,128 @@ def sample_transitions(
                 for episode in hf[scene]:
                     groups.append(f"{scene}/{episode}")
 
-        for i in tqdm(range(n_transitions), desc="Sampling transitions", leave=False, disable=True):
-            grp = hf[np.random.choice(groups)]
-            step = np.random.randint(len(grp["actions"]))
+        for group in tqdm(groups, desc="Loading dataset"):
 
-            # now add to transitions
             for dataset in datasets:
                 if "next_states" in dataset:
-                    transitions.append_next_observations(grp[dataset][step], dataset.split("/")[1])
+                    rpb.extend_next_states(
+                        hf[group][dataset][...],
+                        dataset.split("/")[1])
                 elif "states" in dataset:
-                    transitions.append_observations(grp[dataset][step], dataset.split("/")[1])
+                    rpb.extend_states(
+                        hf[group][dataset][...],
+                        dataset.split("/")[1])
                 elif "actions" in dataset:
-                    transitions.append_action(grp[dataset][step])
+                    rpb.extend_actions(hf[group][dataset][...])
                 elif "rewards" in dataset:
-                    transitions.append_reward(grp[dataset][step])
+                    rpb.extend_rewards(hf[group][dataset][...])
+                elif "dones" in dataset:
+                    rpb.extend_dones(hf[group][dataset][...])
+    # print size of dataset in memory (MBs)
+    print(f"Dataset size: {sys.getsizeof(rpb)/1024/1024:.3f} MBs\n"
+          f"Number of transitions: {rpb.num_steps}\n"
+          f"Number of episodes: {len(groups)}")
+    rpb.to_continuous_actions()
+    return rpb
 
-    return transitions
 
-
-def dataset_episodes(config):
+def prepare_batches(config, n_batches=5000, n_transitions=256, groups=None, datasets=None):
+    """
+    prepare multiple batches so that they can be used in an efficient way
+    """
+    load_full_dataset(config)
+    if datasets is None:
+        datasets = [
+            "states/position",
+            "states/heading",
+            "states/pointgoal",
+            "actions"
+        ]
+    batches = [ReplayBuffer() for _ in range(n_batches)]
     with h5py.File(config.DATASET.SP_DATASET_PATH, "r") as hf:
-        return [f"{episode}" for scene in hf for episode in hf[scene]]
+        if groups is None:
+            groups = []
+            for scene in hf:
+                for episode in hf[scene]:
+                    groups.append(f"{scene}/{episode}")
+
+        # sample a group
+
+        # put all transitions into the batches
+        # switch to next batch for each transition
+        # until all batches are full
+        batch_idx = 0
+        transitions_added = 0
+        while transitions_added < n_transitions * n_batches:
+            grp = hf[np.random.choice(groups)]
+            # load transitions into memory
+            trajectory = {}
+            for dataset in datasets:
+                trajectory[dataset] = grp[dataset][...]
+
+            # now add to transitions
+            for step in range(len(trajectory["actions"])):
+                for dataset in datasets:
+                    if "next_states" in dataset:
+                        batches[batch_idx].append_next_observations(trajectory[dataset][step],
+                                                                    dataset.split("/")[1])
+                    elif "states" in dataset:
+                        batches[batch_idx].append_observations(trajectory[dataset][step],
+                                                               dataset.split("/")[1])
+                    elif "actions" in dataset:
+                        batches[batch_idx].append_action(trajectory[dataset][step])
+                    elif "rewards" in dataset:
+                        batches[batch_idx].append_reward(trajectory[dataset][step])
+                batch_idx = (batch_idx + 1) % n_batches
+                transitions_added += 1
+                if transitions_added >= n_transitions * n_batches:
+                    break
+    return batches
+
+
+def batch_generator(
+    config,
+    n_transitions=256,
+    groups=None,
+    datasets=None,
+    use_full_dataset=False,
+    n_batches=5000
+):
+
+    if not use_full_dataset:
+        while True:
+            batches = prepare_batches(
+                config,
+                n_transitions=n_transitions,
+                groups=groups,
+                datasets=datasets,
+                n_batches=n_batches
+            )
+            while len(batches) > 0:
+                batch = batches.pop(0)
+                yield batch
+    else:
+        dataset = load_full_dataset(config, groups=groups, datasets=datasets)
+        while True:
+            yield dataset.sample(n_transitions)
+
+def sample_transitions(
+    config,
+    n_transitions=256,
+    groups=None,
+    datasets=None,
+    use_full_dataset=True,
+):
+
+    gen = batch_generator(
+        config,
+        n_transitions=n_transitions,
+        groups=groups,
+        datasets=datasets,
+        use_full_dataset=use_full_dataset
+    )
+    batch = next(gen)
+    return batch
 
 
 def calc_mean_std(config, groups=None):
@@ -217,6 +338,29 @@ def calc_mean_std(config, groups=None):
             stats[ds] = (np.mean(all_data, axis=0), np.std(all_data, axis=0))
     return stats
 
+
+def longest_cont_action_sequence(config, groups=None):
+    with h5py.File(config.DATASET.SP_DATASET_PATH, "r") as hf:
+        if groups is None:
+            groups = []
+            for scene in hf:
+                for episode in hf[scene]:
+                    groups.append(f"{scene}/{episode}")
+        max_len = 0
+        for grp in groups:
+            actions = hf[grp]["actions"][...]
+            current_value = actions[0]
+            current_len = 1
+            for a in actions[1:]:
+                if a == current_value:
+                    current_len += 1
+                else:
+                    max_len = max(max_len, current_len)
+                    current_len = 1
+                    current_value = a
+
+    return max_len
+
 def main():
     scene_dict = {
         "medium": "17DRP5sb8fy",
@@ -227,12 +371,14 @@ def main():
     }
     parser = argparse.ArgumentParser()
     parser.add_argument("--scene", type=str, default="medium")
+    parser.add_argument("--overwrite", action="store_true")
 
     args = parser.parse_args()
 
-    config = habitat.get_config("configs/tasks/pointnav_mp3d_medium.yaml")
+    config = habitat.get_config("configs/tasks/pointnav_mp3d_sp_dataset_generation.yaml")
 
     scene = args.scene
+    overwrite = args.overwrite
 
     if scene == "all":
         scenes = ["medium", "small", "large", "long_hallway", "xl"]
@@ -249,8 +395,12 @@ def main():
         if scene == "long_hallway":
             config.DATASET.DATA_PATH = "data/datasets/pointnav/mp3d/v1/test/test.json.gz"
         config.DATASET.EPISODES = -1
+        path = config.DATASET.SP_DATASET_PATH
+        path = path.split(".")[0]
+        path += f"_{scene}.hdf5"
+        config.DATASET.SP_DATASET_PATH = path
         config.freeze()
-        generate_shortest_path_dataset(config)
+        generate_shortest_path_dataset(config, overwrite=overwrite)
 
 if __name__ == "__main__":
     # config = habitat.get_config("configs/tasks/pointnav_mp3d_medium.yaml")
