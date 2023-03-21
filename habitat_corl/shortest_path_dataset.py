@@ -18,6 +18,15 @@ from gym import spaces
 import h5py
 import os
 
+non_image_state_datasets = [
+    "position",
+    "heading",
+    "gps",
+    "compass",
+    "pointgoal",
+    "pointgoal_with_gps_compass",
+]
+
 
 @registry.register_sensor(name="PositionSensor")
 class PositionSensor(EpisodicGPSSensor):
@@ -64,6 +73,11 @@ def dataset_to_dhf5(dataset: ReplayBuffer, config):
 
     file_path = config.DATASET.SP_DATASET_PATH
 
+    # add "state" prefix to state keys
+    dataset.states = {f"state_{k}": v for k, v in dataset.states.items()}
+    dataset.next_states = {f"next_state_{k}": v for k, v in
+                           dataset.next_states.items()}
+
     df = vaex.from_arrays(
         episode_id=dataset.episode_ids,
         scene=dataset.scenes,
@@ -71,25 +85,30 @@ def dataset_to_dhf5(dataset: ReplayBuffer, config):
         reward=dataset.rewards,
         done=dataset.dones,
         **dataset.states,
+        **dataset.next_states,
     )
-    print(df)
 
     # export each scene/episode to a group
     # get all scenes
     all_scenes = set([scene for scene in dataset.scenes])
-    for scene in all_scenes:
+    for scene in tqdm(all_scenes):
         # get all episodes
         idxs = np.where(dataset.scenes == scene)[0]
         episode_ids = set(dataset.episode_ids[idxs])
         for episode_id in episode_ids:
             df_ep = df[(df.scene == scene) & (df.episode_id == episode_id)]
-            print(df_ep)
-            df_ep.export_hdf5(file_path, progress=True, mode="a", group=f"{scene}/{episode_id}")
+            df_ep.export_hdf5(file_path, progress=True, mode="a",
+                              group=f"{scene}/{episode_id}")
 
     # file_path = file_path.replace(".hdf5", ".parquet")
     # df.export_parquet(file_path, progress=True)
 
-    # file_path = file_path.replace(".hdf5", "big.hdf5")
+    # append in rows of 100
+    # file_path = file_path.replace(".hdf5", "_big_test.hdf5")
+    # for i in tqdm(range(0, len(df), 100), desc="Saving episodes"):
+    #     df_ep = df[i:i + 100]
+    #     df_ep.export_hdf5(file_path, progress=True, mode="a")
+
     # df.export_hdf5(file_path, progress=True, mode="a")
 
     # make dirs
@@ -125,6 +144,7 @@ def get_stored_scenes(config):
     except:
         return []
 
+
 def get_stored_episodes(config, scene=None):
     file_path = config.DATASET.SP_DATASET_PATH
     with h5py.File(file_path, "r") as hf:
@@ -136,7 +156,19 @@ def get_stored_episodes(config, scene=None):
             episodes = list(hf[scene].keys())
     return episodes
 
-def generate_shortest_path_dataset(config, train_episodes=None, max_traj_len=1000, overwrite=False):
+
+def get_stored_groups(config):
+    file_path = config.DATASET.SP_DATASET_PATH
+    with h5py.File(file_path, "r") as hf:
+        groups = []
+        for scene in hf:
+            for episode in hf[scene]:
+                groups.append(f"{scene}/{episode}")
+    return groups
+
+
+def generate_shortest_path_dataset(config, train_episodes=None,
+                                   max_traj_len=1000, overwrite=False):
     if isinstance(config, str):
         config = get_config(config)
 
@@ -151,19 +183,20 @@ def generate_shortest_path_dataset(config, train_episodes=None, max_traj_len=100
     for scene in get_stored_scenes(config):
         stored_eps[scene] = get_stored_episodes(config, scene)
 
-
     with habitat.Env(config) as env:
         if train_episodes is not None:
             env.episodes = train_episodes
 
-        shortest_path_follower = ShortestPathFollower(env.sim, config.TASK.SUCCESS_DISTANCE)
+        shortest_path_follower = ShortestPathFollower(env.sim,
+                                                      config.TASK.SUCCESS_DISTANCE)
 
         if config.DATASET.EPISODES == -1:
             n_episodes = len(env.episodes)
         else:
             n_episodes = min(config.DATASET.EPISODES, len(env.episodes))
         # for episode in tqdm(range(len(env.episodes)), desc="Generating shortest path dataset"):
-        for episode in tqdm(range(n_episodes), desc="Generating shortest path dataset"):
+        for episode in tqdm(range(n_episodes),
+                            desc="Generating shortest path dataset"):
             obs = env.reset()
             episode_id = env.current_episode.episode_id
             scene = env.current_episode.scene_id.split("/")[-1].split(".")[0]
@@ -179,7 +212,8 @@ def generate_shortest_path_dataset(config, train_episodes=None, max_traj_len=100
                 dataset.append_observations(obs)
 
                 # print("Step: ", step)
-                action = shortest_path_follower.get_next_action(env.current_episode.goals[0].position)
+                action = shortest_path_follower.get_next_action(
+                    env.current_episode.goals[0].position)
                 # select position with value 1
                 action = action.argmax()
                 action_name = env.task.get_action_name(action)
@@ -190,7 +224,6 @@ def generate_shortest_path_dataset(config, train_episodes=None, max_traj_len=100
                 info = env.get_metrics()
                 dataset.append_scene(scene)
                 dataset.append_episode_id(episode_id)
-
 
                 # reward calculation
                 if action_name != "STOP":
@@ -207,14 +240,14 @@ def generate_shortest_path_dataset(config, train_episodes=None, max_traj_len=100
                 # check if action is stop
                 if action_name == "STOP":
                     break
-            if (episode+1) % 100 == 0:
+            if (episode + 1) % 100 == 0:
                 dataset_to_dhf5(dataset, config)
                 dataset = ReplayBuffer()
     dataset_to_dhf5(dataset, config)
     return dataset
 
 
-def load_full_dataset(config, groups=None, datasets=None):
+def load_full_dataset(config, groups=None, datasets=None, continuous=False):
     if datasets is None:
         datasets = [
             "states/position",
@@ -222,90 +255,92 @@ def load_full_dataset(config, groups=None, datasets=None):
             "states/pointgoal",
             "actions"
         ]
+    datasets = [dataset.replace(f"s/", "_") for dataset in datasets]
     rpb = ReplayBuffer()
-    with h5py.File(config.DATASET.SP_DATASET_PATH, "r") as hf:
-        if groups is None:
-            groups = []
-            for scene in hf:
-                for episode in hf[scene]:
-                    groups.append(f"{scene}/{episode}")
+    groups = get_stored_groups(config) if groups is None else groups
 
-        for group in tqdm(groups, desc="Loading dataset"):
-
-            for dataset in datasets:
-                if "next_states" in dataset:
-                    rpb.extend_next_states(
-                        hf[group][dataset][...],
-                        dataset.split("/")[1])
-                elif "states" in dataset:
-                    rpb.extend_states(
-                        hf[group][dataset][...],
-                        dataset.split("/")[1])
-                elif "actions" in dataset:
-                    rpb.extend_actions(hf[group][dataset][...])
-                elif "rewards" in dataset:
-                    rpb.extend_rewards(hf[group][dataset][...])
-                elif "dones" in dataset:
-                    rpb.extend_dones(hf[group][dataset][...])
+    for group in tqdm(groups, desc="Loading dataset"):
+        df = vaex.open(f"{config.DATASET.SP_DATASET_PATH}", group=group)
+        for dataset in datasets:
+            if "next_state" in dataset:
+                rpb.extend_next_states(
+                    df[dataset].values,
+                    dataset.split("state_")[1])
+            elif "state" in dataset:
+                rpb.extend_states(
+                    df[dataset].values,
+                    dataset.split("state_")[1])
+            elif "action" in dataset:
+                ds = "action"
+                rpb.extend_actions(df[ds].values)
+            elif "reward" in dataset:
+                ds = "reward"
+                rpb.extend_rewards(df[ds].values)
+            elif "done" in dataset:
+                ds = "done"
+                rpb.extend_dones(df[ds].values)
     # print size of dataset in memory (MBs)
-    print(f"Dataset size: {sys.getsizeof(rpb)/1024/1024:.3f} MBs\n"
+    print(f"Dataset size: {sys.getsizeof(rpb) / 1024 / 1024:.3f} MBs\n"
           f"Number of transitions: {rpb.num_steps}\n"
           f"Number of episodes: {len(groups)}")
-    rpb.to_continuous_actions()
+    if continuous:
+        rpb.to_continuous_actions()
     return rpb
 
 
-def prepare_batches(config, n_batches=5000, n_transitions=256, groups=None, datasets=None):
+def prepare_batches(config, n_batches=5000, n_transitions=256, groups=None,
+                    datasets=None, continuous=False):
     """
     prepare multiple batches so that they can be used in an efficient way
     """
-    load_full_dataset(config)
     if datasets is None:
         datasets = [
-            "states/position",
-            "states/heading",
-            "states/pointgoal",
-            "actions"
+            "state_position",
+            "state_heading",
+            "state_pointgoal",
+            "action"
         ]
     batches = [ReplayBuffer() for _ in range(n_batches)]
-    with h5py.File(config.DATASET.SP_DATASET_PATH, "r") as hf:
-        if groups is None:
-            groups = []
-            for scene in hf:
-                for episode in hf[scene]:
-                    groups.append(f"{scene}/{episode}")
+    groups = get_stored_groups(config) if groups is None else groups
 
-        # sample a group
+    # sample a group
 
-        # put all transitions into the batches
-        # switch to next batch for each transition
-        # until all batches are full
-        batch_idx = 0
-        transitions_added = 0
-        while transitions_added < n_transitions * n_batches:
-            grp = hf[np.random.choice(groups)]
-            # load transitions into memory
-            trajectory = {}
+    # put all transitions into the batches
+    # switch to next batch for each transition
+    # until all batches are full
+    batch_idx = 0
+    transitions_added = 0
+    while transitions_added < n_transitions * n_batches:
+        replay = ReplayBuffer()
+        replay.from_hdf5_group(config.DATASET.SP_DATASET_PATH,
+                               np.random.choice(groups))
+        if continuous:
+            replay.to_continuous_actions()
+        # now add to transitions
+        for step in range(replay.num_steps):
             for dataset in datasets:
-                trajectory[dataset] = grp[dataset][...]
-
-            # now add to transitions
-            for step in range(len(trajectory["actions"])):
-                for dataset in datasets:
-                    if "next_states" in dataset:
-                        batches[batch_idx].append_next_observations(trajectory[dataset][step],
-                                                                    dataset.split("/")[1])
-                    elif "states" in dataset:
-                        batches[batch_idx].append_observations(trajectory[dataset][step],
-                                                               dataset.split("/")[1])
-                    elif "actions" in dataset:
-                        batches[batch_idx].append_action(trajectory[dataset][step])
-                    elif "rewards" in dataset:
-                        batches[batch_idx].append_reward(trajectory[dataset][step])
-                batch_idx = (batch_idx + 1) % n_batches
-                transitions_added += 1
-                if transitions_added >= n_transitions * n_batches:
-                    break
+                if "next_state" in dataset:
+                    kind = dataset.split("state_")[1]
+                    batches[batch_idx].append_next_observations(
+                        replay.next_states[kind][step],
+                        kind
+                    )
+                elif "state" in dataset:
+                    kind = dataset.split("state_")[1]
+                    batches[batch_idx].append_observations(
+                        replay.states[kind][step],
+                        kind
+                    )
+                elif "action" in dataset:
+                    batches[batch_idx].append_action(replay.actions[step])
+                elif "reward" in dataset:
+                    batches[batch_idx].append_reward(replay.rewards[step])
+                elif "done" in dataset:
+                    batches[batch_idx].append_done(replay.dones[step])
+            batch_idx = (batch_idx + 1) % n_batches
+            transitions_added += 1
+            if transitions_added >= n_transitions * n_batches:
+                break
     return batches
 
 
@@ -315,9 +350,9 @@ def batch_generator(
     groups=None,
     datasets=None,
     use_full_dataset=False,
-    n_batches=5000
+    n_batches=5000,
+    continuous=False
 ):
-
     if not use_full_dataset:
         while True:
             batches = prepare_batches(
@@ -325,15 +360,22 @@ def batch_generator(
                 n_transitions=n_transitions,
                 groups=groups,
                 datasets=datasets,
-                n_batches=n_batches
+                n_batches=n_batches,
+                continuous=continuous
             )
             while len(batches) > 0:
                 batch = batches.pop(0)
                 yield batch
     else:
-        dataset = load_full_dataset(config, groups=groups, datasets=datasets)
+        dataset = load_full_dataset(
+            config,
+            groups=groups,
+            datasets=datasets,
+            continuous=continuous
+        )
         while True:
             yield dataset.sample(n_transitions)
+
 
 def sample_transitions(
     config,
@@ -342,7 +384,6 @@ def sample_transitions(
     datasets=None,
     use_full_dataset=True,
 ):
-
     gen = batch_generator(
         config,
         n_transitions=n_transitions,
@@ -356,13 +397,10 @@ def sample_transitions(
 
 def calc_mean_std(config, groups=None):
     with h5py.File(config.DATASET.SP_DATASET_PATH, "r") as hf:
-        if groups is None:
-            groups = []
-            for scene in hf:
-                for episode in hf[scene]:
-                    groups.append(f"{scene}/{episode}")
+        groups = get_stored_groups(config) if groups is None else groups
         # get all types of state datasets
-        state_datasets = [x for x in hf[groups[0]]["states"] if x not in ["rgb", "depth"]]
+        state_datasets = [x for x in hf[groups[0]] if
+                          x in non_image_state_datasets]
         stats = {}
         for ds in state_datasets:
             all_data = []
@@ -375,11 +413,7 @@ def calc_mean_std(config, groups=None):
 
 def longest_cont_action_sequence(config, groups=None):
     with h5py.File(config.DATASET.SP_DATASET_PATH, "r") as hf:
-        if groups is None:
-            groups = []
-            for scene in hf:
-                for episode in hf[scene]:
-                    groups.append(f"{scene}/{episode}")
+        groups = get_stored_groups(config) if groups is None else groups
         max_len = 0
         for grp in groups:
             actions = hf[grp]["actions"][...]
@@ -395,6 +429,7 @@ def longest_cont_action_sequence(config, groups=None):
 
     return max_len
 
+
 def main():
     scene_dict = {
         "medium": "17DRP5sb8fy",
@@ -409,7 +444,8 @@ def main():
 
     args = parser.parse_args()
 
-    config = habitat.get_config("configs/tasks/pointnav_mp3d_sp_dataset_generation.yaml")
+    config = habitat.get_config(
+        "configs/tasks/pointnav_mp3d_sp_dataset_generation.yaml")
 
     scene = args.scene
     overwrite = args.overwrite
@@ -431,13 +467,13 @@ def main():
         config.DATASET.EPISODES = -1
         path = config.DATASET.SP_DATASET_PATH
         path = path.split(".")[0]
-        path += f"_vx_{scene}.hdf5"
+        path += f"_{scene}.hdf5"
         config.DATASET.SP_DATASET_PATH = path
         config.freeze()
         generate_shortest_path_dataset(config, overwrite=overwrite)
+
 
 if __name__ == "__main__":
     # config = habitat.get_config("configs/tasks/pointnav_mp3d_medium.yaml")
     # sample_transitions(config, 256)
     main()
-
