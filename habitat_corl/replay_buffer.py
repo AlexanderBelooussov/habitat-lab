@@ -1,5 +1,6 @@
 import argparse
-from typing import Dict
+import sys
+from typing import Dict, Union
 
 import habitat
 import torch
@@ -53,6 +54,37 @@ class ReplayBuffer:
     def append_reward(self, reward):
         self.rewards.append(reward)
 
+    def extend_rewards(self, rewards: np.ndarray):
+        self.rewards.extend(rewards)
+
+    def extend_actions(self, actions: np.ndarray):
+        self.actions.extend(actions)
+
+    def extend_dones(self, dones: np.ndarray):
+        self.dones.extend(dones)
+
+    def extend_next_states(self, next_states: Union[Dict[str, np.ndarray], np.ndarray], key=None):
+        if key is None:
+            for key in next_states:
+                if key not in self.next_states:
+                    self.next_states[key] = []
+                self.next_states[key].extend(next_states[key])
+        else:
+            if key not in self.next_states:
+                self.next_states[key] = []
+            self.next_states[key].extend(next_states)
+
+    def extend_states(self, states: Union[Dict[str, np.ndarray], np.ndarray], key=None):
+        if key is None:
+            for key in states:
+                if key not in self.states:
+                    self.states[key] = []
+                self.states[key].extend(states[key])
+        else:
+            if key not in self.states:
+                self.states[key] = []
+            self.states[key].extend(states)
+
     def append_done(self, done):
         self.dones.append(done)
 
@@ -61,35 +93,49 @@ class ReplayBuffer:
 
     def append_episode_id(self, episode_id):
         self.episode_ids.append(episode_id)
-    def to_tensor(self, device=None):
+    def to_tensor(self, device=None, state_keys=None, continuous_actions=False, n_actions=4):
         if device is None:
             device = torch.device(
                 "cuda:0" if torch.cuda.is_available() else "cpu")
-        for key in self.states.keys():
-            self.states[key] = torch.tensor(
+        if state_keys is None:
+            state_keys = list(self.states.keys())
+        state = []
+        next_state = []
+        for key in state_keys:
+            state.append(torch.tensor(
                 self.states[key],
                 dtype=torch.float
-            ).to(device)
+            ).to(device))
             if key in self.next_states:
-                self.next_states[key] = torch.tensor(
+                next_state.append(torch.tensor(
                     self.next_states[key],
                     dtype=torch.float
-                ).to(device)
-        self.actions = torch.tensor(self.actions, dtype=torch.float).to(device)
-        self.rewards = torch.tensor(self.rewards, dtype=torch.float).to(device)
-        self.dones = torch.tensor(self.dones, dtype=torch.float).to(device)
-        return self
+                ).to(device))
+        action = torch.tensor(self.actions, dtype=torch.float).unsqueeze(-1).to(device)
+        # if continuous_actions:
+        #     action = torch.nn.functional.one_hot(action, n_actions).float().to(device)
+        reward = torch.tensor(self.rewards, dtype=torch.float).unsqueeze(1).to(device)
+        done = torch.tensor(self.dones, dtype=torch.float).unsqueeze(1).to(device)
+        state = torch.cat(state, dim=1).to(device)
+        if len (next_state) > 0:
+            next_state = torch.cat(next_state, dim=1).to(device)
+        else:
+            next_state = torch.zeros_like(state)
+
+        return state, action, reward, next_state, done
 
     def sample(self, batch_size):
         idx = np.random.randint(0, len(self.actions), batch_size)
         states = {}
         next_states = {}
         for key in self.states.keys():
-            states[key] = self.states[key][idx]
-            next_states[key] = self.next_states[key][idx]
-        actions = self.actions[idx]
-        rewards = self.rewards[idx]
-        dones = self.dones[idx]
+            states[key] = np.array(self.states[key])[idx]
+            if key in self.next_states:
+                next_states[key] = np.array(self.next_states[key])[idx]
+
+        actions = np.array(self.actions)[idx]
+        rewards = np.array(self.rewards)[idx] if len(self.rewards) > 0 else np.array([])
+        dones = np.array(self.dones)[idx] if len(self.dones) > 0 else np.array([])
 
         sample = ReplayBuffer()
         sample.states = states
@@ -164,6 +210,48 @@ class ReplayBuffer:
     def num_steps(self):
         return len(self.actions)
 
+    def __sizeof__(self):
+        size = 0
+        for key in self.states.keys():
+            size += sys.getsizeof(self.states[key])
+            if key in self.next_states:
+                size += sys.getsizeof(self.next_states[key])
+        size += sys.getsizeof(self.actions)
+        size += sys.getsizeof(self.rewards)
+        size += sys.getsizeof(self.dones)
+        return size
+
+
+    def to_continuous_actions(self, forward=0.25, turn=10):
+        # actions = np.zeros((len(self.actions), max(self.actions) + 1))
+        # for i, action in enumerate(self.actions):
+        #     # get amount of repeats of current action
+        #     repeats = 1
+        #     for j in range(i + 1, len(self.actions)):
+        #         if action == self.actions[j]:
+        #             repeats += 1
+        #         else:
+        #             break
+        #     actions[i, action] = repeats
+        #
+        # actions *= [1, forward, turn * np.pi / 180, turn * np.pi / 180]
+        # self.actions = actions
+        actions = np.zeros(len(self.actions))
+        for i in reversed(range(len(self.actions))):
+            action = self.actions[i]
+            if action == 0:
+                actions[i] = 4.0
+            elif action == 1:
+                actions[i] = self.states['heading'][i]
+            else:
+                # look for next "forward" action
+                for j in range(i + 1, len(self.actions)):
+                    if self.actions[j] == 1 or self.actions[j] == 0:
+                        actions[i] = self.states['heading'][j]
+                        break
+
+        self.actions = actions
+
 def generate_dataset(
     cfg, num_episodes=None
 ):
@@ -225,6 +313,26 @@ def generate_dataset(
         dataset.states['rgb'] = process_rgb(env, dataset)
         dataset.states['depth'] = process_depth(env, dataset)
         return dataset
+
+
+def get_input_dims(config):
+    linear_input_size = 0
+    if "pointgoal_with_gps_compass" in config.MODEL.used_inputs:
+        linear_input_size += config.TASK_CONFIG.TASK.POINTGOAL_WITH_GPS_COMPASS_SENSOR.DIMENSIONALITY
+    if "proximity" in config.MODEL.used_inputs:
+        linear_input_size += 1
+    if "agent_map_coord" in config.MODEL.used_inputs:
+        linear_input_size += 2
+    if "agent_angle" in config.MODEL.used_inputs:
+        linear_input_size += 1
+    if "position" in config.MODEL.used_inputs:
+        linear_input_size += 3
+    if "heading" in config.MODEL.used_inputs:
+        linear_input_size += 1
+    if "pointgoal" in config.MODEL.used_inputs:
+        linear_input_size += config.TASK_CONFIG.TASK.POINTGOAL_SENSOR.DIMENSIONALITY
+
+    return linear_input_size
 
 
 def process_rgb(env, dataset):

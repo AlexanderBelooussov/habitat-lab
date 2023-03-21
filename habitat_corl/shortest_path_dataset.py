@@ -2,6 +2,8 @@ import argparse
 import sys
 from typing import Any
 
+import vaex
+
 import habitat
 from habitat import registry
 from habitat.tasks.nav.nav import EpisodicGPSSensor
@@ -61,28 +63,57 @@ def dataset_to_dhf5(dataset: ReplayBuffer, config):
     dataset.dones = np.array(dataset.dones)
 
     file_path = config.DATASET.SP_DATASET_PATH
-    # make dirs
-    all_scenes = set([scene for scene in dataset.scenes])
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    with h5py.File(file_path, "a") as hf:
-        for scene in tqdm(all_scenes, desc="Saving scenes", leave=False):
-            idxs = np.where(dataset.scenes == scene)[0]
-            episode_ids = set(dataset.episode_ids[idxs])
-            for episode_id in tqdm(episode_ids, desc="Saving episodes", leave=False):
-                if f"{scene}/{episode_id}" in hf:
-                    # delete old dataset
-                    del hf[f"{scene}/{episode_id}"]
-                grp = hf.create_group(f"{scene}/{episode_id}")
-                ep_idxs = np.where(dataset.episode_ids == episode_id)[0]
-                for key in dataset.states.keys():
-                    dataset.states[key] = np.array(dataset.states[key])
-                    grp.create_dataset(f"states/{key}", data=dataset.states[key][ep_idxs], compression="gzip")
-                    dataset.next_states[key] = np.array(dataset.next_states[key])
-                    grp.create_dataset(f"next_states/{key}", data=dataset.next_states[key][ep_idxs], compression="gzip")
 
-                grp.create_dataset("actions", data=dataset.actions[ep_idxs], compression="gzip")
-                grp.create_dataset("rewards", data=dataset.rewards[ep_idxs], compression="gzip")
-                grp.create_dataset("dones", data=dataset.dones[ep_idxs], compression="gzip")
+    df = vaex.from_arrays(
+        episode_id=dataset.episode_ids,
+        scene=dataset.scenes,
+        action=dataset.actions,
+        reward=dataset.rewards,
+        done=dataset.dones,
+        **dataset.states,
+    )
+    print(df)
+
+    # export each scene/episode to a group
+    # get all scenes
+    all_scenes = set([scene for scene in dataset.scenes])
+    for scene in all_scenes:
+        # get all episodes
+        idxs = np.where(dataset.scenes == scene)[0]
+        episode_ids = set(dataset.episode_ids[idxs])
+        for episode_id in episode_ids:
+            df_ep = df[(df.scene == scene) & (df.episode_id == episode_id)]
+            print(df_ep)
+            df_ep.export_hdf5(file_path, progress=True, mode="a", group=f"{scene}/{episode_id}")
+
+    # file_path = file_path.replace(".hdf5", ".parquet")
+    # df.export_parquet(file_path, progress=True)
+
+    # file_path = file_path.replace(".hdf5", "big.hdf5")
+    # df.export_hdf5(file_path, progress=True, mode="a")
+
+    # make dirs
+    # all_scenes = set([scene for scene in dataset.scenes])
+    # os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    # with h5py.File(file_path, "a") as hf:
+    #     for scene in tqdm(all_scenes, desc="Saving scenes", leave=False):
+    #         idxs = np.where(dataset.scenes == scene)[0]
+    #         episode_ids = set(dataset.episode_ids[idxs])
+    #         for episode_id in tqdm(episode_ids, desc="Saving episodes", leave=False):
+    #             if f"{scene}/{episode_id}" in hf:
+    #                 # delete old dataset
+    #                 del hf[f"{scene}/{episode_id}"]
+    #             grp = hf.create_group(f"{scene}/{episode_id}")
+    #             ep_idxs = np.where(dataset.episode_ids == episode_id)[0]
+    #             for key in dataset.states.keys():
+    #                 dataset.states[key] = np.array(dataset.states[key])
+    #                 grp.create_dataset(f"states/{key}", data=dataset.states[key][ep_idxs], compression="gzip")
+    #                 dataset.next_states[key] = np.array(dataset.next_states[key])
+    #                 grp.create_dataset(f"next_states/{key}", data=dataset.next_states[key][ep_idxs], compression="gzip")
+    #
+    #             grp.create_dataset("actions", data=dataset.actions[ep_idxs], compression="gzip")
+    #             grp.create_dataset("rewards", data=dataset.rewards[ep_idxs], compression="gzip")
+    #             grp.create_dataset("dones", data=dataset.dones[ep_idxs], compression="gzip")
 
 
 def get_stored_scenes(config):
@@ -176,7 +207,7 @@ def generate_shortest_path_dataset(config, train_episodes=None, max_traj_len=100
                 # check if action is stop
                 if action_name == "STOP":
                     break
-            if (episode+1) % 500 == 0:
+            if (episode+1) % 100 == 0:
                 dataset_to_dhf5(dataset, config)
                 dataset = ReplayBuffer()
     dataset_to_dhf5(dataset, config)
@@ -400,7 +431,7 @@ def main():
         config.DATASET.EPISODES = -1
         path = config.DATASET.SP_DATASET_PATH
         path = path.split(".")[0]
-        path += f"_{scene}.hdf5"
+        path += f"_vx_{scene}.hdf5"
         config.DATASET.SP_DATASET_PATH = path
         config.freeze()
         generate_shortest_path_dataset(config, overwrite=overwrite)
