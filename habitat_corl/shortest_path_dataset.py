@@ -97,7 +97,7 @@ def dataset_to_dhf5(dataset: ReplayBuffer, config):
         episode_ids = set(dataset.episode_ids[idxs])
         for episode_id in episode_ids:
             df_ep = df[(df.scene == scene) & (df.episode_id == episode_id)]
-            df_ep.export_hdf5(file_path, progress=True, mode="a",
+            df_ep.export_hdf5(file_path, progress=False, mode="a",
                               group=f"{scene}/{episode_id}")
 
     # file_path = file_path.replace(".hdf5", ".parquet")
