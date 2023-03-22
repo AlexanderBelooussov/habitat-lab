@@ -65,22 +65,26 @@ def register_position_sensor(config):
 
 
 def dataset_to_dhf5(dataset: ReplayBuffer, config):
-    dataset.episode_ids = np.array(dataset.episode_ids)
+    dataset.episode_ids = np.array(dataset.episode_ids, dtype=np.uint32)
     dataset.scenes = np.array(dataset.scenes)
-    dataset.actions = np.array(dataset.actions)
-    dataset.rewards = np.array(dataset.rewards)
-    dataset.dones = np.array(dataset.dones)
+    dataset.actions = np.array(dataset.actions, dtype=np.uint8)
+    dataset.rewards = np.array(dataset.rewards, dtype=np.bool)
+    dataset.dones = np.array(dataset.dones, dtype=np.bool)
+
 
     file_path = config.DATASET.SP_DATASET_PATH
 
     # add "state" prefix to state keys
-    dataset.states = {f"state_{k}": v for k, v in dataset.states.items()}
+    # reduce depth size by converting float32 to uint8
+    dataset.states['depth'] = (np.array(dataset.states['depth']) * 255).astype(np.uint8)
+    dataset.next_states['depth'] = (np.array(dataset.next_states['depth']) * 255).astype(np.uint8)
+    dataset.states = {f"state_{k}": np.array(v, dtype=np.uint8) for k, v in dataset.states.items()}
     dataset.next_states = {f"next_state_{k}": v for k, v in
                            dataset.next_states.items()}
 
     df = vaex.from_arrays(
-        episode_id=dataset.episode_ids,
-        scene=dataset.scenes,
+        # episode_id=dataset.episode_ids,
+        # scene=dataset.scenes,
         action=dataset.actions,
         reward=dataset.rewards,
         done=dataset.dones,
@@ -96,7 +100,8 @@ def dataset_to_dhf5(dataset: ReplayBuffer, config):
         idxs = np.where(dataset.scenes == scene)[0]
         episode_ids = set(dataset.episode_ids[idxs])
         for episode_id in episode_ids:
-            df_ep = df[(df.scene == scene) & (df.episode_id == episode_id)]
+            idxs = np.where((dataset.episode_ids == episode_id) & (dataset.scenes == scene))[0]
+            df_ep = df[min(idxs):max(idxs) + 1]
             df_ep.export_hdf5(file_path, progress=False, mode="a",
                               group=f"{scene}/{episode_id}")
 
@@ -467,7 +472,7 @@ def main():
         config.DATASET.EPISODES = -1
         path = config.DATASET.SP_DATASET_PATH
         path = path.split(".")[0]
-        path += f"_{scene}.hdf5"
+        path += f"_{scene}_smaller.hdf5"
         config.DATASET.SP_DATASET_PATH = path
         config.freeze()
         generate_shortest_path_dataset(config, overwrite=overwrite)

@@ -1,13 +1,13 @@
 # Note:  Hyperparameters have been changed slightly from
 # the paper to allow for things to easily run on 1 GPU
 
-BASE_TASK_CONFIG_PATH: "configs/tasks/objectnav_mp3d_small.yaml"
+BASE_TASK_CONFIG_PATH: "configs/tasks/objectnav_mp3d_il_small.yaml"
 TRAINER_NAME: "bc"
 ENV_NAME: "NavRLEnv"
 SIMULATOR_GPU_ID: 0
 TORCH_GPU_ID: 0
 #VIDEO_OPTION: []
-VIDEO_OPTION: ["disk", "tensorboard"]  # Can be uncommented to generate videos.
+VIDEO_OPTION: ["disk"]  # Can be uncommented to generate videos.
 TENSORBOARD_DIR: "tb"
 VIDEO_DIR: "video_dir"
 TEST_EPISODE_COUNT: -1  # Evaluate on all episodes if -1
@@ -64,7 +64,7 @@ MODEL:
     backbone: "resnet18"
     train_encoder: True
     embedding_size: 4
-    is_thda: True
+    is_thda: False
     num_classes: 29
   RGB_ENCODER:
     cnn_type: "ResnetRGBEncoder"
