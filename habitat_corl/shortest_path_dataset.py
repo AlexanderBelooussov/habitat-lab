@@ -173,7 +173,6 @@ def get_stored_groups(config):
     return groups
 
 
-@profile
 def generate_shortest_path_dataset(config, train_episodes=None,
                                    max_traj_len=1000, overwrite=False):
     if isinstance(config, str):
