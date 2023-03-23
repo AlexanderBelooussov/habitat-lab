@@ -1,4 +1,5 @@
 import argparse
+import gc
 import sys
 from typing import Any
 
@@ -172,6 +173,7 @@ def get_stored_groups(config):
     return groups
 
 
+@profile
 def generate_shortest_path_dataset(config, train_episodes=None,
                                    max_traj_len=1000, overwrite=False):
     if isinstance(config, str):
@@ -247,9 +249,8 @@ def generate_shortest_path_dataset(config, train_episodes=None,
                     break
             if (episode + 1) % 100 == 0:
                 dataset_to_dhf5(dataset, config)
-                # free memory
-                del dataset
                 dataset = ReplayBuffer()
+                gc.collect()
     dataset_to_dhf5(dataset, config)
     return dataset
 
