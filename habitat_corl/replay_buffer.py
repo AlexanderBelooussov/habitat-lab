@@ -5,6 +5,7 @@ from typing import Dict, Union
 import habitat
 import torch
 import numpy as np
+import vaex
 
 from habitat.utils.visualizations.utils import observations_to_image, \
     images_to_video, append_text_to_image
@@ -25,6 +26,28 @@ class ReplayBuffer:
         self.next_states = {}
         self.scenes = []
         self.episode_ids = []
+
+    def from_hdf5_group(self, file_path, group):
+        df = vaex.open(file_path, group=group)
+        states = [col for col in df.get_column_names() if col.startswith("state_")]
+        next_states = [col for col in df.get_column_names() if col.startswith("next_state_")]
+        for state in states:
+            name = state.split("state_")[1]
+            self.states[name] = df[state].values
+        for next_state in next_states:
+            name = next_state.split("next_state_")[1]
+            self.next_states[name] = df[next_state].values
+
+        scene = group.split("/")[0]
+        ep = group.split("/")[1]
+        self.dones = df["done"].values
+        self.actions = df["action"].values
+        self.rewards = df["reward"].values
+        self.scenes = [scene] * len(self.dones)
+        self.scenes = np.array(self.scenes)
+        self.episode_ids = [ep] * len(self.dones)
+        self.episode_ids = np.array(self.episode_ids)
+
 
     def append_observations(self, observations, key=None):
         if key is None:

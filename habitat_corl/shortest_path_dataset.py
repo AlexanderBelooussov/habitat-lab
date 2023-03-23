@@ -247,6 +247,8 @@ def generate_shortest_path_dataset(config, train_episodes=None,
                     break
             if (episode + 1) % 100 == 0:
                 dataset_to_dhf5(dataset, config)
+                # free memory
+                del dataset
                 dataset = ReplayBuffer()
     dataset_to_dhf5(dataset, config)
     return dataset
@@ -472,7 +474,7 @@ def main():
         config.DATASET.EPISODES = -1
         path = config.DATASET.SP_DATASET_PATH
         path = path.split(".")[0]
-        path += f"_{scene}_smaller.hdf5"
+        path += f"_{scene}.hdf5"
         config.DATASET.SP_DATASET_PATH = path
         config.freeze()
         generate_shortest_path_dataset(config, overwrite=overwrite)
