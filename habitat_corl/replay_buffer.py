@@ -52,10 +52,14 @@ class ReplayBuffer:
     def append_observations(self, observations, key=None):
         if key is None:
             for key in observations:
+                if "state_" in key:
+                    key = key.split("state_")[1]
                 if key not in self.states:
                     self.states[key] = []
                 self.states[key].append(observations[key])
         else:
+            if "state_" in key:
+                key = key.split("state_")[1]
             if key not in self.states:
                 self.states[key] = []
             self.states[key].append(observations)
@@ -63,10 +67,14 @@ class ReplayBuffer:
     def append_next_observations(self, observations, key=None):
         if key is None:
             for key in observations:
+                if "state_" in key:
+                    key = key.split("state_")[1]
                 if key not in self.next_states:
                     self.next_states[key] = []
                 self.next_states[key].append(observations[key])
         else:
+            if "state_" in key:
+                key = key.split("state_")[1]
             if key not in self.next_states:
                 self.next_states[key] = []
             self.next_states[key].append(observations)
@@ -259,18 +267,18 @@ class ReplayBuffer:
         #
         # actions *= [1, forward, turn * np.pi / 180, turn * np.pi / 180]
         # self.actions = actions
+        def normalize_angle(angle):
+            return (angle + np.pi) / (2 * np.pi)
         actions = np.zeros(len(self.actions))
         for i in reversed(range(len(self.actions))):
             action = self.actions[i]
-            if action == 0:
-                actions[i] = 4.0
-            elif action == 1:
-                actions[i] = self.states['heading'][i]
+            if action == 1 or action == 0:
+                actions[i] = normalize_angle(self.states['heading'][i])
             else:
-                # look for next "forward" action
+                # look for next different action
                 for j in range(i + 1, len(self.actions)):
-                    if self.actions[j] == 1 or self.actions[j] == 0:
-                        actions[i] = self.states['heading'][j]
+                    if self.actions[j] != action or j == len(self.actions) - 1:
+                        actions[i] = normalize_angle(self.states['heading'][j])
                         break
 
         self.actions = actions
