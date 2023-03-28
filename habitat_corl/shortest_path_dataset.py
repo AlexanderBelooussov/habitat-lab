@@ -255,7 +255,10 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
                     dataset.split("state_")[1])
             elif "action" in dataset:
                 ds = "action"
-                rpb.extend_actions(df[ds].values[:n_steps])
+                actions = df[ds].values[:n_steps]
+                if not continuous and ignore_stop:
+                    actions = actions - 1
+                rpb.extend_actions(actions)
             elif "reward" in dataset:
                 ds = "reward"
                 if not ignore_stop:
@@ -332,7 +335,11 @@ def prepare_batches(config, n_batches=5000, n_transitions=256, groups=None,
                         kind
                     )
                 elif "action" in dataset:
-                    batches[batch_idx].append_action(replay.actions[step])
+                    action = replay.actions[step]
+                    # shift actions to fill gap left by stop
+                    if not continuous and ignore_stop:
+                        action = action - 1
+                    batches[batch_idx].append_action(action)
                 elif "reward" in dataset:
                     if ignore_stop and step+1 == replay.num_steps - 1:
                         batches[batch_idx].append_reward(replay.rewards[step+1])

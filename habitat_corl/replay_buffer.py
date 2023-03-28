@@ -27,7 +27,7 @@ class ReplayBuffer:
         self.scenes = []
         self.episode_ids = []
 
-    def from_hdf5_group(self, file_path, group):
+    def from_hdf5_group(self, file_path, group, ignore_stop=False):
         df = vaex.open(file_path, group=group)
         states = [col for col in df.get_column_names() if col.startswith("state_")]
         next_states = [col for col in df.get_column_names() if col.startswith("next_state_")]
@@ -43,11 +43,25 @@ class ReplayBuffer:
         self.dones = df["done"].values
         self.actions = df["action"].values
         self.rewards = df["reward"].values
+
+        if ignore_stop:
+            self.dones = self.dones[:-1].copy()
+            self.dones[-1] = True
+            last_reward = self.rewards[-1]
+            self.rewards = self.rewards[:-1].copy()
+            self.rewards[-1] += last_reward
+            self.actions = self.actions[:-1].copy()
+            self.actions -= 1
+            for key in self.states:
+                self.states[key] = self.states[key][:-1]
+            for key in self.next_states:
+                self.next_states[key] = self.next_states[key][:-1]
+
+
         self.scenes = [scene] * len(self.dones)
         self.scenes = np.array(self.scenes)
         self.episode_ids = [ep] * len(self.dones)
         self.episode_ids = np.array(self.episode_ids)
-
 
     def append_observations(self, observations, key=None):
         if key is None:
