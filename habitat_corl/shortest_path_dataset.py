@@ -280,6 +280,8 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
                     dones = df[ds].values[:-2]
                     dones = np.append(dones, True)
                     rpb.extend_dones(dones)
+
+        df.close()
     # print size of dataset in memory (MBs)
     print(f"Dataset size: {sys.getsizeof(rpb) / 1024 / 1024:.3f} MBs\n"
           f"Number of transitions: {rpb.num_steps}\n"
