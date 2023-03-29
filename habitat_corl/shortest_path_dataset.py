@@ -289,6 +289,7 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
           f"Number of episodes: {len(groups)}")
     if continuous:
         rpb.to_continuous_actions()
+    rpb.to_numpy()
     return rpb
 
 

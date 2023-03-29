@@ -1,6 +1,7 @@
 import argparse
 import copy
 import sys
+import time
 from typing import Dict, Union
 
 from tqdm import tqdm, trange
@@ -29,6 +30,10 @@ class ReplayBuffer:
         self.next_states = {}
         self.scenes = []
         self.episode_ids = []
+
+    @property
+    def is_numpy(self):
+        return isinstance(self.dones, np.ndarray)
 
     def from_hdf5_group(self, file_path, group, ignore_stop=False):
         df = vaex.open(file_path, group=group)
@@ -66,6 +71,16 @@ class ReplayBuffer:
         self.episode_ids = [ep] * len(self.dones)
         self.episode_ids = np.array(self.episode_ids)
 
+    def to_numpy(self):
+        for key in self.states:
+            self.states[key] = np.array(self.states[key])
+        for key in self.next_states:
+            self.next_states[key] = np.array(self.next_states[key])
+        self.dones = np.array(self.dones)
+        self.actions = np.array(self.actions)
+        self.rewards = np.array(self.rewards)
+
+
     def append_observations(self, observations, key=None):
         if key is None:
             for key in observations:
@@ -78,8 +93,8 @@ class ReplayBuffer:
             if "state_" in key:
                 key = key.split("state_")[1]
             if key not in self.states:
-                self.states[key] = []
-            self.states[key].append(observations)
+                self.states[key] = np.array([])
+            self.states[key] = np.array.append(self.states[key], observations)
 
     def append_next_observations(self, observations, key=None):
         if key is None:
@@ -173,24 +188,45 @@ class ReplayBuffer:
         return state, action, reward, next_state, done
 
     def sample(self, batch_size):
+        assert self.is_numpy
+
+        start = time.time()
         idx = np.random.randint(0, len(self.actions), batch_size)
+        print("sample idx", time.time() - start)
         states = {}
         next_states = {}
+        state_start = time.time()
         for key in self.states.keys():
-            states[key] = np.array(self.states[key])[idx]
+            states[key] = self.states[key][idx]
             if key in self.next_states:
-                next_states[key] = np.array(self.next_states[key])[idx]
+                next_states[key] = self.next_states[key][idx]
+        print("sample state", time.time() - state_start)
 
-        actions = np.array(self.actions)[idx]
-        rewards = np.array(self.rewards)[idx] if len(self.rewards) > 0 else np.array([])
-        dones = np.array(self.dones)[idx] if len(self.dones) > 0 else np.array([])
+        # new_start = time.time()
+        # new_states = {}
+        # new_next_states = {}
+        # for key in self.states.keys():
+        #     states[key] = self.states.take(idx, axis=0)
+        #     if key in self.next_states:
+        #         next_states[key] = np.array(self.next_states[key])[idx]
+        # print("sample state new", time.time() - new_start)
 
+        other_start = time.time()
+        actions = self.actions[idx]
+        rewards = self.rewards[idx] if len(self.rewards) > 0 else np.array([])
+        dones = self.dones[idx] if len(self.dones) > 0 else np.array([])
+        print("sample other", time.time() - other_start)
+
+        replay_start = time.time()
         sample = ReplayBuffer()
         sample.states = states
         sample.next_states = next_states
         sample.actions = actions
         sample.rewards = rewards
         sample.dones = dones
+        print("sample replay", time.time() - replay_start)
+
+        print("sample time", time.time() - start)
 
         return sample
 
