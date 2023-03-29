@@ -388,7 +388,6 @@ class SACN:
 
     def update(self, batch: ReplayBuffer, used_inputs: List[str]) -> Dict[
         str, float]:
-        start = time.time()
         state, action, reward, next_state, done = batch.to_tensor(self.device,
                                                                   used_inputs,
                                                                   continuous_actions=True)
@@ -437,7 +436,6 @@ class SACN:
             "q_policy_std": q_policy_std,
             "q_random_std": q_random_std,
         }
-        print(f"Update time: {time.time() - start:.3f} sec")
         return update_info
 
     def state_dict(self) -> Dict[str, Any]:
@@ -651,8 +649,8 @@ def train(config):
                     episodes=eval_episodes,
                     seed=config.SEED,
                     used_inputs=config.MODEL.used_inputs,
-                    video=True,
-                    # video=epoch == config.RL.SAC_N.num_epochs - 1,
+                    # video=True,
+                    video=epoch == config.RL.SAC_N.num_epochs - 1,
                     video_dir=config.VIDEO_DIR,
                     video_prefix="sac_n/sac_n",
                     succes_distance=config.TASK_CONFIG.TASK.SUCCESS_DISTANCE,
