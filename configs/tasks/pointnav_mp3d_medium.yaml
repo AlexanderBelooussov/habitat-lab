@@ -39,5 +39,5 @@ DATASET:
   TYPE: PointNav-v1
   SPLIT: train
   DATA_PATH: data/datasets/pointnav/mp3d/v1/{split}/{split}.json.gz
-  SP_DATASET_PATH: data/sp_datasets/datasets_medium.hdf5
+  SP_DATASET_PATH: data/sp_datasets/datasets_medium_no_depth.hdf5
   CONTENT_SCENES: ["17DRP5sb8fy"] # medium scene
