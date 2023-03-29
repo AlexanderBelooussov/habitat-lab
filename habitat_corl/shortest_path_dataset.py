@@ -241,6 +241,7 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
 
     for group in tqdm(groups, desc="Loading dataset"):
         df = vaex.open(f"{config.DATASET.SP_DATASET_PATH}", group=group)
+        df.executor.buffer_size = 10_000
         n_steps = len(df['action'].values)
         if ignore_stop:
             n_steps -= 1

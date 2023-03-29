@@ -1,7 +1,8 @@
 # Note:  Hyperparameters have been changed slightly from
 # the paper to allow for things to easily run on 1 GPU
 
-BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_medium.yaml"
+#BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_medium.yaml"
+BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_small.yaml"
 TRAINER_NAME: "bc"
 ENV_NAME: "NavRLEnv"
 SIMULATOR_GPU_ID: 0
