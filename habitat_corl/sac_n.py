@@ -3,6 +3,7 @@
 # 2. implementation: https://github.com/snu-mllab/EDAC
 import argparse
 import faulthandler
+import time
 # The only difference from the original implementation:
 # default pytorch weight initialization,
 # without custom rlkit init & uniform init for last layers.
@@ -143,7 +144,7 @@ def soft_update(target: nn.Module, source: nn.Module, tau: float):
 
 def wandb_init(config) -> None:
     # check cuda device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     wandb.login(key=config.WANDB_KEY)
     wandb.init(
         config=config,
@@ -387,6 +388,7 @@ class SACN:
 
     def update(self, batch: ReplayBuffer, used_inputs: List[str]) -> Dict[
         str, float]:
+        start = time.time()
         state, action, reward, next_state, done = batch.to_tensor(self.device,
                                                                   used_inputs,
                                                                   continuous_actions=True)
@@ -435,6 +437,7 @@ class SACN:
             "q_policy_std": q_policy_std,
             "q_random_std": q_random_std,
         }
+        print(f"Update time: {time.time() - start:.3f} sec")
         return update_info
 
     def state_dict(self) -> Dict[str, Any]:
@@ -607,7 +610,7 @@ def train(config):
                       "w") as f:
                 f.write(config.dump())
 
-        total_updates = 0.0
+        total_updates = 0
         evaluations = []
         batch_gen = batch_generator(
             config.TASK_CONFIG,
@@ -626,6 +629,7 @@ def train(config):
             # training
             for _ in trange(config.RL.SAC_N.num_updates_on_epoch, desc="Epoch",
                             leave=False):
+                start = time.time()
                 batch = next(batch_gen)
                 batch.normalize_states(mean_std)
                 batch.to_tensor(device=device)
@@ -636,6 +640,8 @@ def train(config):
                     wandb.log({"epoch": epoch, **update_info})
 
                 total_updates += 1
+
+                print(f"iteration time: {time.time() - start:34f}")
 
             # evaluation
             t = total_updates
@@ -676,6 +682,7 @@ def train(config):
                         },
                         step=total_updates,
                     )
+
 
     wandb.finish()
 
