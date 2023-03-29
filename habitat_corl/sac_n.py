@@ -2,6 +2,7 @@
 # 1. paper for SAC-N: https://arxiv.org/abs/2110.01548
 # 2. implementation: https://github.com/snu-mllab/EDAC
 import argparse
+import faulthandler
 # The only difference from the original implementation:
 # default pytorch weight initialization,
 # without custom rlkit init & uniform init for last layers.
@@ -141,13 +142,15 @@ def soft_update(target: nn.Module, source: nn.Module, tau: float):
 
 
 def wandb_init(config) -> None:
+    # check cuda device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     wandb.init(
         config=config,
         project=config.PROJECT,
         group=config.GROUP,
         name=config.NAME,
         id=str(uuid.uuid4()),
-        mode="disabled"
+        mode="disabled" if device == "cpu" else "online",
     )
     wandb.run.save()
 
@@ -688,4 +691,5 @@ def main():
 
 
 if __name__ == "__main__":
+    faulthandler.enable()
     main()

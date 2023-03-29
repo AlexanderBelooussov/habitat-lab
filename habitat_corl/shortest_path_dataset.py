@@ -1,4 +1,5 @@
 import argparse
+import copy
 import gc
 import sys
 from typing import Any
@@ -241,33 +242,33 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
     rpb = ReplayBuffer()
     groups = get_stored_groups(config) if groups is None else groups
 
+    df = None
     for group in tqdm(groups, desc="Loading dataset"):
         df = vaex.open(f"{config.DATASET.SP_DATASET_PATH}", group=group)
-        df.executor.buffer_size = 10_000
         n_steps = len(df['action'].values)
         if ignore_stop:
             n_steps -= 1
         for dataset in datasets:
             if "next_state" in dataset:
                 rpb.extend_next_states(
-                    df[dataset].values[:n_steps],
+                    copy.deepcopy(df[dataset].values[:n_steps]),
                     dataset.split("state_")[1])
             elif "state" in dataset:
                 rpb.extend_states(
-                    df[dataset].values[:n_steps],
+                    copy.deepcopy(df[dataset].values[:n_steps]),
                     dataset.split("state_")[1])
             elif "action" in dataset:
                 ds = "action"
-                actions = df[ds].values[:n_steps]
+                actions = copy.deepcopy(df[ds].values[:n_steps])
                 if not continuous and ignore_stop:
                     actions = actions - 1
                 rpb.extend_actions(actions)
             elif "reward" in dataset:
                 ds = "reward"
                 if not ignore_stop:
-                    rpb.extend_rewards(df[ds].values)
+                    rpb.extend_rewards(copy.deepcopy(df[ds].values[:n_steps]))
                 else:
-                    rewards = df[ds].values[:-2]
+                    rewards = copy.deepcopy(df[ds].values[:-2])
                     final_reward = df[ds].values[-1]
                     rewards = np.append(rewards, final_reward)
                     rpb.extend_rewards(rewards)
@@ -275,9 +276,9 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
             elif "done" in dataset:
                 ds = "done"
                 if not ignore_stop:
-                    rpb.extend_dones(df[ds].values)
+                    rpb.extend_dones(copy.deepcopy(df[ds].values[:n_steps]))
                 else:
-                    dones = df[ds].values[:-2]
+                    dones = copy.deepcopy(df[ds].values[:-2])
                     dones = np.append(dones, True)
                     rpb.extend_dones(dones)
 

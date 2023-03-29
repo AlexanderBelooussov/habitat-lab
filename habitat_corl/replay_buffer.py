@@ -1,6 +1,9 @@
 import argparse
+import copy
 import sys
 from typing import Dict, Union
+
+from tqdm import tqdm, trange
 
 import habitat
 import torch
@@ -33,29 +36,29 @@ class ReplayBuffer:
         next_states = [col for col in df.get_column_names() if col.startswith("next_state_")]
         for state in states:
             name = state.split("state_")[1]
-            self.states[name] = df[state].values
+            self.states[name] = copy.deepcopy(df[state].values)
         for next_state in next_states:
             name = next_state.split("next_state_")[1]
-            self.next_states[name] = df[next_state].values
+            self.next_states[name] = copy.deepcopy(df[next_state].values)
 
         scene = group.split("/")[0]
         ep = group.split("/")[1]
-        self.dones = df["done"].values
-        self.actions = df["action"].values
-        self.rewards = df["reward"].values
+        self.dones = copy.deepcopy(df["done"].values)
+        self.actions = copy.deepcopy(df["action"].values)
+        self.rewards = copy.deepcopy(df["reward"].values)
 
         if ignore_stop:
-            self.dones = self.dones[:-1].copy()
+            self.dones = copy.deepcopy(self.dones[:-1])
             self.dones[-1] = True
             last_reward = self.rewards[-1]
-            self.rewards = self.rewards[:-1].copy()
+            self.rewards = copy.deepcopy(self.rewards[:-1])
             self.rewards[-1] += last_reward
-            self.actions = self.actions[:-1].copy()
+            self.actions = copy.deepcopy(self.actions[:-1])
             self.actions -= 1
             for key in self.states:
-                self.states[key] = self.states[key][:-1]
+                self.states[key] = copy.deepcopy(self.states[key][:-1])
             for key in self.next_states:
-                self.next_states[key] = self.next_states[key][:-1]
+                self.next_states[key] = copy.deepcopy(self.next_states[key][:-1])
 
 
         self.scenes = [scene] * len(self.dones)
@@ -284,8 +287,7 @@ class ReplayBuffer:
         def normalize_angle(angle):
             return (angle + np.pi) / (2 * np.pi)
         actions = np.zeros(len(self.actions))
-        for i in reversed(range(len(self.actions))):
-            action = self.actions[i]
+        for i, action in tqdm(enumerate(self.actions)):
             if action == 1 or action == 0:
                 actions[i] = normalize_angle(self.states['heading'][i])
             else:
