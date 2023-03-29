@@ -190,43 +190,24 @@ class ReplayBuffer:
     def sample(self, batch_size):
         assert self.is_numpy
 
-        start = time.time()
         idx = np.random.randint(0, len(self.actions), batch_size)
-        print("sample idx", time.time() - start)
         states = {}
         next_states = {}
-        state_start = time.time()
         for key in self.states.keys():
             states[key] = self.states[key][idx]
             if key in self.next_states:
                 next_states[key] = self.next_states[key][idx]
-        print("sample state", time.time() - state_start)
 
-        # new_start = time.time()
-        # new_states = {}
-        # new_next_states = {}
-        # for key in self.states.keys():
-        #     states[key] = self.states.take(idx, axis=0)
-        #     if key in self.next_states:
-        #         next_states[key] = np.array(self.next_states[key])[idx]
-        # print("sample state new", time.time() - new_start)
-
-        other_start = time.time()
         actions = self.actions[idx]
         rewards = self.rewards[idx] if len(self.rewards) > 0 else np.array([])
         dones = self.dones[idx] if len(self.dones) > 0 else np.array([])
-        print("sample other", time.time() - other_start)
 
-        replay_start = time.time()
         sample = ReplayBuffer()
         sample.states = states
         sample.next_states = next_states
         sample.actions = actions
         sample.rewards = rewards
         sample.dones = dones
-        print("sample replay", time.time() - replay_start)
-
-        print("sample time", time.time() - start)
 
         return sample
 

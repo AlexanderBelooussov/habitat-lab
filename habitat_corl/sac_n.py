@@ -629,7 +629,6 @@ def train(config):
             # training
             for _ in trange(config.RL.SAC_N.num_updates_on_epoch, desc="Epoch",
                             leave=False):
-                start = time.time()
                 batch = next(batch_gen)
                 batch.normalize_states(mean_std)
                 batch.to_tensor(device=device)
@@ -640,8 +639,6 @@ def train(config):
                     wandb.log({"epoch": epoch, **update_info})
 
                 total_updates += 1
-
-                print(f"iteration time: {time.time() - start:34f}")
 
             # evaluation
             t = total_updates
