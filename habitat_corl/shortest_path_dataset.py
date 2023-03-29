@@ -80,8 +80,10 @@ def dataset_to_dhf5(dataset: ReplayBuffer, config):
     dataset.states = {f"state_{k}": v for k, v in dataset.states.items()}
     dataset.next_states = {f"next_state_{k}": v for k, v in
                            dataset.next_states.items()}
-    dataset.states['state_depth'] = (np.array(dataset.states['state_depth']) * 255).astype(np.uint8)
-    dataset.next_states['next_state_depth'] = (np.array(dataset.next_states['next_state_depth']) * 255).astype(np.uint8)
+    if 'state_depth' in dataset.states:
+        dataset.states['state_depth'] = (np.array(dataset.states['state_depth']) * 255).astype(np.uint8)
+    if 'next_state_depth' in dataset.next_states:
+        dataset.next_states['next_state_depth'] = (np.array(dataset.next_states['next_state_depth']) * 255).astype(np.uint8)
 
     df = vaex.from_arrays(
         # episode_id=dataset.episode_ids,
@@ -500,7 +502,7 @@ def main():
         config.DATASET.EPISODES = -1
         path = config.DATASET.SP_DATASET_PATH
         path = path.split(".")[0]
-        path += f"_{scene}.hdf5"
+        path += f"_{scene}_no_depth.hdf5"
         config.DATASET.SP_DATASET_PATH = path
         config.freeze()
         generate_shortest_path_dataset(config, overwrite=overwrite)
