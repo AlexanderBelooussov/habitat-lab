@@ -144,6 +144,7 @@ def soft_update(target: nn.Module, source: nn.Module, tau: float):
 def wandb_init(config) -> None:
     # check cuda device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    wandb.login(key=config.WANDB_KEY)
     wandb.init(
         config=config,
         project=config.PROJECT,
