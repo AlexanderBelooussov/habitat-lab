@@ -4,6 +4,13 @@ import habitat_corl.sac_n
 from habitat_baselines.config.default import get_config
 from habitat_corl.shortest_path_dataset import register_position_sensor
 
+scene_dict = {
+    "medium": "17DRP5sb8fy",
+    "small": "Pm6F8kyY3z2",
+    "large": "XcA2TqTSSAj",
+    "long_hallway": "Vt2qJdWjCF2",
+    "xl": "uNb9QFRL6hY",
+}
 
 def main():
     parser = argparse.ArgumentParser()
@@ -35,6 +42,13 @@ def main():
     parser.add_argument(
         "--seed", type=int, default=1, help="Random seed to use"
     )
+    parser.add_argument(
+        "--scene",
+        type=str,
+        default="medium",
+        choices=["medium", "large", "small", "xl"],
+        help="Scene to use",
+    )
 
     args = parser.parse_args()
 
@@ -43,6 +57,7 @@ def main():
     ignore_stop = args.ignore_stop
     n_eval_episodes = args.n_eval_episodes
     seed = args.seed
+    scene = args.scene
 
     if algorithm == "sacn" and task != "objectnav":
         base_config = "habitat_corl/configs/sacn_pointnav.yaml"
@@ -51,6 +66,7 @@ def main():
         base_config.RL.SAC_N.ignore_stop = True
         base_config.RL.SAC_N.eval_episodes = n_eval_episodes
         base_config.SEED = seed
+        base_config.TASK_CONFIG.DATASET.CONTENT_SCENES = [scene_dict[scene]]
         if task == "singlegoal":
             base_config.RL.SAC_N.single_goal = True
             base_config.RL.SAC_N.used_inpts = ["position", "heading"]
