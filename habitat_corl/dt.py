@@ -22,38 +22,13 @@ import wandb
 import habitat
 from habitat.utils.visualizations.utils import images_to_video, \
     observations_to_image
-from habitat_corl.common.utils import restructure_results, train_eval_split
+from habitat_corl.common.utils import restructure_results, train_eval_split, \
+    set_seed, wandb_init
+from habitat_corl.common.wrappers import wrap_env
 from habitat_corl.replay_buffer import get_input_dims, ReplayBuffer
 from habitat_corl.shortest_path_dataset import calc_mean_std, \
     get_stored_groups, register_position_sensor
 from habitat_baselines.config.default import get_config
-
-class HabitatWrapper(ObservationWrapper):
-    def reset(self, **kwargs):
-        """Resets the environment, returning a modified observation using :meth:`self.observation`."""
-        obs = self.env.reset(**kwargs)
-        return self.observation(obs)
-
-    def step(self, action):
-        """Returns a modified observation using :meth:`self.observation` after calling :meth:`env.step`."""
-        observation = self.env.step(action)
-        return self.observation(observation)
-
-class HabitatAcionWrapper(gym.ActionWrapper):
-    def __init__(self, env, ignore_stop=False):
-        super().__init__(env)
-        self.ignore_stop = ignore_stop
-        if ignore_stop:
-            self.action_space = gym.spaces.Discrete(
-                self.action_space.n - 1
-            )
-
-    def action(self, action):
-        if self.ignore_stop:
-            action = action + 1
-        return action
-
-
 
 
 def strin_to_tuple(string, dtype):
@@ -62,64 +37,6 @@ def strin_to_tuple(string, dtype):
           string.replace('(', '').replace(')', '').replace('...',
                                                           '').split(
               ', '))
-
-# general utils
-def set_seed(
-    seed: int, env: Optional[gym.Env] = None, deterministic_torch: bool = False
-):
-    if env is not None:
-        env.seed(seed)
-        env.action_space.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.manual_seed(seed)
-    if deterministic_torch:
-        torch.backends.cudnn.benchmark = False
-        torch.backends.cudnn.deterministic = True
-
-
-def wandb_init(config) -> None:
-    wandb.init(
-        config=config,
-        project=config.PROJECT,
-        group=config.GROUP,
-        name=config.NAME,
-        id=str(uuid.uuid4()),
-        mode="disabled"
-    )
-    wandb.run.save()
-
-
-def wrap_env(
-    env: gym.Env,
-    state_mean: Union[np.ndarray, float] = 0.0,
-    state_std: Union[np.ndarray, float] = 1.0,
-    reward_scale: float = 1.0,
-    used_inputs=None,
-    ignore_stop=False,
-) -> gym.Env:
-    if used_inputs is None:
-        used_inputs = ["postion", "heading", "pointgoal"]
-
-    def state_to_vector(state):
-        return np.concatenate([state[key] for key in used_inputs], axis=-1)
-
-    def normalize_state(state):
-        return (state - state_mean) / state_std
-
-    def transform_state(state):
-        raw_state = state
-        state = state_to_vector(state)
-        return normalize_state(state), raw_state
-
-    def scale_reward(reward):
-        return reward_scale * reward
-
-    env = HabitatWrapper(env)
-    env.observation = transform_state
-    env = HabitatAcionWrapper(env, ignore_stop=ignore_stop)
-    return env
 
 
 # some utils functionalities specific for Decision Transformer
@@ -528,6 +445,7 @@ def train(config):
         state_std=dataset.state_std,
         reward_scale=dt_config.reward_scale,
         ignore_stop=dt_config.ignore_stop,
+        continuous=False
     )
     # model & optimizer & scheduler setup
     state_dim = get_input_dims(config)

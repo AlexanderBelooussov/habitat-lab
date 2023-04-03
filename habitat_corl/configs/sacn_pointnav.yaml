@@ -40,26 +40,28 @@ RL:
     num_updates_on_epoch: 1000
     normalize_reward: False
     # evaluation params
-    eval_episodes: 10
+    eval_episodes: 20
     eval_every: 5
     # general params
     deterministic_torch: False
     log_every: 100
     load_full_dataset: True
     ignore_stop: True
+    single_goal: True
     # debug
 #    num_updates_on_epoch: 10
 #    eval_every: 1
 
 # Wandb logging
 PROJECT: "habitat"
-GROUP: "SAC-N-habitat"
+GROUP: "SingleGoal"
 NAME: "SAC-N"
 WANDB_KEY: "88503bf83ff0a806be0ebc012f36e98fb193348a"
 
 MODEL:
   # selecting inputs to use
-  used_inputs: ["position", "heading", "goal_position"]
+#  used_inputs: ["position", "heading", "goal_position"]
+  used_inputs: ["position", "heading"]
   ablate_depth: False
   ablate_rgb: False
   num_recurrent_layers: 2

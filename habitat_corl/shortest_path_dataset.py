@@ -265,7 +265,7 @@ def generate_shortest_path_dataset(config, train_episodes=None,
 
 
 def load_full_dataset(config, groups=None, datasets=None, continuous=False,
-                      ignore_stop=False):
+                      ignore_stop=False, single_goal=None):
     if datasets is None:
         datasets = [
             "states/position",
@@ -273,11 +273,11 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
             "states/pointgoal",
             "action"
         ]
+
     datasets = [dataset.replace(f"s/", "_") for dataset in datasets]
     rpb = ReplayBuffer()
     groups = get_stored_groups(config) if groups is None else groups
 
-    df = None
     for group in tqdm(groups, desc="Loading dataset"):
         df = vaex.open(f"{config.DATASET.SP_DATASET_PATH}", group=group)
         n_steps = len(df['action'].values)
@@ -300,18 +300,23 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
                 rpb.extend_actions(actions)
             elif "reward" in dataset:
                 ds = "reward"
-                if not ignore_stop:
+                if not ignore_stop and single_goal is None:
                     rpb.extend_rewards(copy.deepcopy(df[ds].values[:n_steps]))
                 else:
                     # np array of current positions
                     positions = copy.deepcopy(df["next_state_position"].values[:-1])
                     # np array of goal positions
-                    goals = copy.deepcopy(df["state_goal_position"].values[:-1])
+                    if single_goal is None:
+                        goals = copy.deepcopy(df["state_goal_position"].values[:-1])
+                    else:
+                        goals = np.array([single_goal] * n_steps)
                     # np array of distances between current position and goal
                     distances = np.linalg.norm(positions - goals, axis=1)
                     # np array of rewards
                     rewards = np.where(
                         distances < config.TASK.SUCCESS_DISTANCE, 1, 0)
+                    if 1 in rewards:
+                        print("Goal reached")
                     rpb.extend_rewards(rewards)
 
             elif "done" in dataset:
@@ -415,7 +420,8 @@ def batch_generator(
     use_full_dataset=False,
     n_batches=5000,
     continuous=False,
-    ignore_stop=False
+    ignore_stop=False,
+    single_goal=None
 ):
     if continuous:
         ignore_stop = True
@@ -439,7 +445,8 @@ def batch_generator(
             groups=groups,
             datasets=datasets,
             continuous=continuous,
-            ignore_stop=ignore_stop
+            ignore_stop=ignore_stop,
+            single_goal=single_goal
         )
         while True:
             yield dataset.sample(n_transitions)
@@ -464,6 +471,8 @@ def sample_transitions(
 
 
 def calc_mean_std(config, groups=None, used_inputs=None):
+    means = []
+    stds = []
     with h5py.File(config.DATASET.SP_DATASET_PATH, "r") as hf:
         groups = get_stored_groups(config) if groups is None else groups
         # get all types of state datasets
@@ -472,12 +481,34 @@ def calc_mean_std(config, groups=None, used_inputs=None):
         assert len(state_datasets) > 0, "No state datasets found"
         stats = {}
         for ds in state_datasets:
+            count = 0
+            mean = None
+            std = None
             all_data = []
             for grp in groups:
+                count += 1
                 data = hf[grp]["columns"][ds]['data']
                 all_data.append(data[...])
+                if count % 100 == 0:
+                    # early stopping if mean and std do not change anymore
+                    ad = np.concatenate(all_data, axis=0)
+                    new_mean = np.mean(ad, axis=0)
+                    new_std = np.std(ad, axis=0)
+                    if mean is None:
+                        mean = new_mean
+                        std = new_std
+                    else:
+                        mean_dif = np.linalg.norm(mean - new_mean)
+                        std_dif = np.linalg.norm(std - new_std)
+                        if mean_dif < 1e-3 and std_dif < 1e-3:
+                            break
+                        else:
+                            mean = new_mean
+                            std = new_std
             all_data = np.concatenate(all_data, axis=0)
             stats[ds] = (np.mean(all_data, axis=0), np.std(all_data, axis=0))
+
+
 
     if used_inputs is not None:
         used_mean = []

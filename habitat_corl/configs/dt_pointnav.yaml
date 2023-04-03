@@ -58,15 +58,17 @@ RL:
     eval_seed: 42
 #    device: "cuda"
     ignore_stop: True
+    # TODO: single_goal = True
 
 # Wandb logging
 PROJECT: "habitat"
 GROUP: "DT-habitat"
 NAME: "DT"
+WANDB_KEY: "88503bf83ff0a806be0ebc012f36e98fb193348a"
 
 MODEL:
   # selecting inputs to use
-  used_inputs: ["position", "heading", "pointgoal"]
+  used_inputs: ["position", "heading", "goal_position"]
   ablate_depth: False
   ablate_rgb: False
   num_recurrent_layers: 2

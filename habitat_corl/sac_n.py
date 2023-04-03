@@ -3,153 +3,37 @@
 # 2. implementation: https://github.com/snu-mllab/EDAC
 import argparse
 import faulthandler
-import time
-# The only difference from the original implementation:
-# default pytorch weight initialization,
-# without custom rlkit init & uniform init for last layers.
-from typing import Any, Dict, List, Optional, Tuple, Union
-from copy import deepcopy
-from dataclasses import asdict, dataclass
 import math
 import os
 import random
 import uuid
+from copy import deepcopy
+# The only difference from the original implementation:
+# default pytorch weight initialization,
+# without custom rlkit init & uniform init for last layers.
+from typing import Any, Dict, List, Optional, Tuple
 
 import gym
 import numpy as np
 import torch
-from gym import ObservationWrapper, ActionWrapper
-from torch.distributions import Normal
 import torch.nn as nn
-from tqdm import trange
 import wandb
+from torch.distributions import Normal
 from tqdm import tqdm
+from tqdm import trange
 
 import habitat
 from habitat.utils.visualizations.utils import images_to_video, \
     observations_to_image
 from habitat_baselines.config.default import get_config
 from habitat_corl.common.utils import restructure_results, train_eval_split
+from habitat_corl.common.wrappers import wrap_env
 from habitat_corl.replay_buffer import ReplayBuffer, get_input_dims
-from habitat_corl.shortest_path_dataset import sample_transitions, \
-    register_position_sensor, \
-    calc_mean_std, get_stored_episodes, batch_generator
+from habitat_corl.shortest_path_dataset import register_position_sensor, \
+    calc_mean_std, batch_generator
 
 # general utils
 TensorBatch = List[torch.Tensor]
-
-class HabitatWrapper(ObservationWrapper):
-    def reset(self, **kwargs):
-        """Resets the environment, returning a modified observation using :meth:`self.observation`."""
-        obs = self.env.reset(**kwargs)
-        return self.observation(obs)
-
-    def step(self, action):
-        """Returns a modified observation using :meth:`self.observation` after calling :meth:`env.step`."""
-        observation = self.env.step(action)
-        return self.observation(observation)
-
-class ContinuousActionWrapper(ActionWrapper):
-    def __init__(self, env):
-        super().__init__(env)
-        self.action_space = gym.spaces.Box(
-            low=0.0, high=1.0, shape=(1,), dtype=np.float32
-        )
-    def _quat_to_xy_heading(self, quat):
-        from habitat.utils.geometry_utils import quaternion_rotate_vector
-        from habitat.tasks.utils import cartesian_to_polar
-        direction_vector = np.array([0, 0, -1])
-
-        heading_vector = quaternion_rotate_vector(quat, direction_vector)
-
-        phi = cartesian_to_polar(-heading_vector[2], heading_vector[0])[1]
-        return np.array([phi], dtype=np.float32)
-
-    def _get_heading(self):
-        env = self.env
-        while hasattr(env, "env"):
-            env = env.env
-        agent_state = env.sim.get_agent_state()
-        rotation_world_agent = agent_state.rotation
-        return self._quat_to_xy_heading(rotation_world_agent.inverse())
-
-    def action(self, action):
-        action = action[0]
-        # clip action to [0, 1]
-        action = np.clip(action, 0, 1)
-        target_angle = action * (2 * np.pi)
-
-        current_heading = self._get_heading() + np.pi
-
-        # tolerance = 7.5 degrees, in radians
-        tolerance = 7.5 * np.pi / 180
-
-        if target_angle > current_heading:
-            # if target angel is greater than current heading,
-            # angle while turning left does not wrap around 2pi
-            left_angle = target_angle - current_heading
-            # angle while turning right does wrap around 2pi
-            right_angle = current_heading + (2 * np.pi - target_angle)
-        else:
-            # if target angle is less than current heading,
-            # angle while turning right does not wrap around 2pi
-            right_angle = current_heading - target_angle
-            # angle while turning left does wrap around 2pi
-            left_angle = target_angle + (2 * np.pi - current_heading)
-
-        # if the current heading is within tolerance of the target angle,
-        # move forward = 1
-        if np.abs(current_heading - target_angle) < tolerance:
-            return 1
-
-        # if angle to turn left is less than angle to turn right,
-        # turn left = 2
-        if left_angle < right_angle:
-            return 2
-
-        # if angle to turn right is less than angle to turn left,
-        # turn right = 3
-        if left_angle > right_angle:
-            return 3
-
-    def step(self, action):
-        target_angle = action * (2 * np.pi) - np.pi
-        current_heading = self._get_heading()
-        obs = self.env.step(self.action(action))
-        new_heading = self._get_heading()
-
-        return obs
-
-
-
-def wrap_env(
-    env: gym.Env,
-    state_mean: Union[np.ndarray, float] = 0.0,
-    state_std: Union[np.ndarray, float] = 1.0,
-    reward_scale: float = 1.0,
-    used_inputs=None,
-) -> gym.Env:
-    if used_inputs is None:
-        used_inputs = ["postion", "heading", "pointgoal"]
-
-    def state_to_vector(state):
-        return np.concatenate([state[key] for key in used_inputs], axis=-1)
-
-    def normalize_state(state):
-        return (state - state_mean) / state_std
-
-    def transform_state(state):
-        raw_state = deepcopy(state)
-        state = state_to_vector(state)
-        return normalize_state(state), raw_state
-
-    def scale_reward(reward):
-        return reward_scale * reward
-
-    env = HabitatWrapper(env)
-    env.observation = transform_state
-    env = ContinuousActionWrapper(env)
-    return env
 
 
 def soft_update(target: nn.Module, source: nn.Module, tau: float):
@@ -361,7 +245,7 @@ class SACN:
             action, action_log_prob = self.actor(state, need_log_prob=True)
 
         loss = (-self.log_alpha * (
-                action_log_prob + self.target_entropy)).mean()
+            action_log_prob + self.target_entropy)).mean()
 
         return loss
 
@@ -507,9 +391,12 @@ def eval_actor(
 
     # run the agent for n_episodes
     # env = habitat.Env(config=env._config)
-    env.episodes = episodes
-    env.episode_iterator = iter(episodes)
-    env.seed(seed)  # needed?
+    env_ptr = env
+    while hasattr(env_ptr, "env"):
+        env_ptr = env_ptr.env
+    env_ptr.episodes = episodes
+    env_ptr.episode_iterator = iter(episodes)
+    env_ptr.seed(seed)  # needed?
     results = []
     for i in tqdm(range(len(episodes)), desc="eval", leave=False):
         video_frames = []
@@ -571,7 +458,8 @@ def train(config):
     wandb_init(config)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    mean_std = calc_mean_std(config.TASK_CONFIG, used_inputs=config.MODEL.used_inputs)
+    mean_std = calc_mean_std(config.TASK_CONFIG,
+                             used_inputs=config.MODEL.used_inputs)
 
     # data, evaluation, env setup
     with wrap_env(
@@ -579,6 +467,8 @@ def train(config):
         state_mean=mean_std["used"][0],
         state_std=mean_std["used"][1],
         used_inputs=config.MODEL.used_inputs,
+        continuous=True,
+        ignore_stop=config.RL.SAC_N.ignore_stop,
     ) as env:
         state_dim = get_input_dims(config)
         action_dim = 1
@@ -587,9 +477,9 @@ def train(config):
         train_episodes, eval_episodes = train_eval_split(
             env=env,
             config=config,
-            n_eval_episodes=config.RL.SAC_N.eval_episodes
+            n_eval_episodes=config.RL.SAC_N.eval_episodes,
+            single_goal=config.RL.SAC_N.single_goal,
         )
-
 
         # Actor & Critic setup
         actor = Actor(state_dim, action_dim, config.RL.SAC_N.hidden_dim,
@@ -605,6 +495,11 @@ def train(config):
         critic_optimizer = torch.optim.Adam(
             critic.parameters(), lr=config.RL.SAC_N.critic_learning_rate
         )
+
+        if config.RL.SAC_N.single_goal:
+            goal = eval_episodes[0].goals[0].position
+        else:
+            goal = None
 
         trainer = SACN(
             actor=actor,
@@ -639,6 +534,7 @@ def train(config):
                      [f"next_state_{x}" for x in config.MODEL.used_inputs] + \
                      ["action", "reward", "done"],
             continuous=True,
+            single_goal=goal
         )
         for epoch in trange(config.RL.SAC_N.num_epochs, desc="Training"):
             # training
@@ -694,7 +590,6 @@ def train(config):
                         },
                         step=total_updates,
                     )
-
 
     wandb.finish()
 
