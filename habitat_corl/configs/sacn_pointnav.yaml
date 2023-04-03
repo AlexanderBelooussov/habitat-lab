@@ -54,12 +54,12 @@ RL:
 # Wandb logging
 PROJECT: "habitat"
 GROUP: "SAC-N-habitat"
-NAME: "SAN-N"
+NAME: "SAC-N"
 WANDB_KEY: "88503bf83ff0a806be0ebc012f36e98fb193348a"
 
 MODEL:
   # selecting inputs to use
-  used_inputs: ["position", "heading", "pointgoal"]
+  used_inputs: ["position", "heading", "goal_position"]
   ablate_depth: False
   ablate_rgb: False
   num_recurrent_layers: 2

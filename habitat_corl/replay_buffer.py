@@ -395,6 +395,8 @@ def get_input_dims(config):
         linear_input_size += 1
     if "pointgoal" in config.MODEL.used_inputs:
         linear_input_size += config.TASK_CONFIG.TASK.POINTGOAL_SENSOR.DIMENSIONALITY
+    if "goal_position" in config.MODEL.used_inputs:
+        linear_input_size += 3
 
     return linear_input_size
 

@@ -9,6 +9,7 @@ import vaex
 import habitat
 from habitat import registry
 from habitat.tasks.nav.nav import EpisodicGPSSensor
+from habitat.tasks.utils import cartesian_to_polar
 from habitat.utils.geometry_utils import quaternion_from_coeff, \
     quaternion_rotate_vector
 from habitat_baselines.config.default import get_config
@@ -27,6 +28,7 @@ non_image_state_datasets = [
     "state_compass",
     "state_pointgoal",
     "state_pointgoal_with_gps_compass",
+    "state_goal_position",
 ]
 
 
@@ -57,11 +59,42 @@ class PositionSensor(EpisodicGPSSensor):
         return agent_state.position
 
 
+@registry.register_sensor(name="GoalPositionSensor")
+class GoalPositionSensor(EpisodicGPSSensor):
+    r"""
+    The agents current location in the global coordinate frame.
+    Args:
+        sim: reference to the simulator for calculating task observations.
+        config: Contains the DIMENSIONALITY field for the number of dimensions to express the agents position
+    Attributes:
+        _dimensionality: number of dimensions used to specify the agents position
+    """
+    cls_uuid: str = "goal_position"
+
+    def _get_observation_space(self, *args: Any, **kwargs: Any):
+        return spaces.Box(
+            low=np.finfo(np.float32).min,
+            high=np.finfo(np.float32).max,
+            shape=(3,),
+            dtype=np.float32,
+        )
+
+    def get_observation(
+        self, observations, episode, *args: Any, **kwargs: Any
+    ):
+        goal_position = episode.goals[0].position
+        return goal_position
+
+
 def register_position_sensor(config):
     config.defrost()
     config.TASK.AGENT_POSITION_SENSOR = habitat.config.Config()
     config.TASK.AGENT_POSITION_SENSOR.TYPE = "PositionSensor"
     config.TASK.SENSORS.append("AGENT_POSITION_SENSOR")
+
+    config.TASK.AGENT_GOAL_POSITION_SENSOR = habitat.config.Config()
+    config.TASK.AGENT_GOAL_POSITION_SENSOR.TYPE = "GoalPositionSensor"
+    config.TASK.SENSORS.append("AGENT_GOAL_POSITION_SENSOR")
     config.freeze()
     return config
 
@@ -73,7 +106,6 @@ def dataset_to_dhf5(dataset: ReplayBuffer, config):
     dataset.rewards = np.array(dataset.rewards, dtype=np.bool)
     dataset.dones = np.array(dataset.dones, dtype=np.bool)
 
-
     file_path = config.DATASET.SP_DATASET_PATH
 
     # add "state" prefix to state keys
@@ -82,9 +114,11 @@ def dataset_to_dhf5(dataset: ReplayBuffer, config):
     dataset.next_states = {f"next_state_{k}": v for k, v in
                            dataset.next_states.items()}
     if 'state_depth' in dataset.states:
-        dataset.states['state_depth'] = (np.array(dataset.states['state_depth']) * 255).astype(np.uint8)
+        dataset.states['state_depth'] = (
+                np.array(dataset.states['state_depth']) * 255).astype(np.uint8)
     if 'next_state_depth' in dataset.next_states:
-        dataset.next_states['next_state_depth'] = (np.array(dataset.next_states['next_state_depth']) * 255).astype(np.uint8)
+        dataset.next_states['next_state_depth'] = (np.array(
+            dataset.next_states['next_state_depth']) * 255).astype(np.uint8)
 
     df = vaex.from_arrays(
         # episode_id=dataset.episode_ids,
@@ -104,7 +138,8 @@ def dataset_to_dhf5(dataset: ReplayBuffer, config):
         idxs = np.where(dataset.scenes == scene)[0]
         episode_ids = set(dataset.episode_ids[idxs])
         for episode_id in episode_ids:
-            idxs = np.where((dataset.episode_ids == episode_id) & (dataset.scenes == scene))[0]
+            idxs = np.where((dataset.episode_ids == episode_id) & (
+                    dataset.scenes == scene))[0]
             df_ep = df[min(idxs):max(idxs) + 1]
             df_ep.export_hdf5(file_path, progress=False, mode="a",
                               group=f"{scene}/{episode_id}")
@@ -261,16 +296,22 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
                 ds = "action"
                 actions = copy.deepcopy(df[ds].values[:n_steps])
                 if not continuous and ignore_stop:
-                    actions = actions - 1
+                    actions = np.where(actions == 0, 0, actions - 1)
                 rpb.extend_actions(actions)
             elif "reward" in dataset:
                 ds = "reward"
                 if not ignore_stop:
                     rpb.extend_rewards(copy.deepcopy(df[ds].values[:n_steps]))
                 else:
-                    rewards = copy.deepcopy(df[ds].values[:-2])
-                    final_reward = df[ds].values[-1]
-                    rewards = np.append(rewards, final_reward)
+                    # np array of current positions
+                    positions = copy.deepcopy(df["next_state_position"].values[:-1])
+                    # np array of goal positions
+                    goals = copy.deepcopy(df["state_goal_position"].values[:-1])
+                    # np array of distances between current position and goal
+                    distances = np.linalg.norm(positions - goals, axis=1)
+                    # np array of rewards
+                    rewards = np.where(
+                        distances < config.TASK.SUCCESS_DISTANCE, 1, 0)
                     rpb.extend_rewards(rewards)
 
             elif "done" in dataset:
@@ -348,13 +389,14 @@ def prepare_batches(config, n_batches=5000, n_transitions=256, groups=None,
                         action = action - 1
                     batches[batch_idx].append_action(action)
                 elif "reward" in dataset:
-                    if ignore_stop and step+1 == replay.num_steps - 1:
-                        batches[batch_idx].append_reward(replay.rewards[step+1])
+                    if ignore_stop and step + 1 == replay.num_steps - 1:
+                        batches[batch_idx].append_reward(
+                            replay.rewards[step + 1])
                     else:
                         batches[batch_idx].append_reward(replay.rewards[step])
                 elif "done" in dataset:
-                    if ignore_stop and step+1 == replay.num_steps - 1:
-                        batches[batch_idx].append_done(replay.dones[step+1])
+                    if ignore_stop and step + 1 == replay.num_steps - 1:
+                        batches[batch_idx].append_done(replay.dones[step + 1])
                     else:
                         batches[batch_idx].append_done(replay.dones[step])
             batch_idx = (batch_idx + 1) % n_batches
@@ -495,6 +537,7 @@ def main():
         scenes = [scene]
     else:
         raise ValueError("Invalid scene")
+    original_path = None
     for scene in scenes:
         print("Generating dataset for scene: ", scene)
         sys.stdout.flush()
@@ -504,7 +547,9 @@ def main():
         if scene == "long_hallway":
             config.DATASET.DATA_PATH = "data/datasets/pointnav/mp3d/v1/test/test.json.gz"
         config.DATASET.EPISODES = -1
-        path = config.DATASET.SP_DATASET_PATH
+        if original_path is None:
+            original_path = config.DATASET.SP_DATASET_PATH
+        path = original_path
         path = path.split(".")[0]
         path += f"_{scene}_no_depth.hdf5"
         config.DATASET.SP_DATASET_PATH = path

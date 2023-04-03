@@ -77,30 +77,47 @@ class ContinuousActionWrapper(ActionWrapper):
         action = action[0]
         # clip action to [0, 1]
         action = np.clip(action, 0, 1)
-        target_angle = action * (2 * np.pi) - np.pi
+        target_angle = action * (2 * np.pi)
 
-        current_heading = self._get_heading()
+        current_heading = self._get_heading() + np.pi
 
         # tolerance = 7.5 degrees, in radians
         tolerance = 7.5 * np.pi / 180
+
+        if target_angle > current_heading:
+            # if target angel is greater than current heading,
+            # angle while turning left does not wrap around 2pi
+            left_angle = target_angle - current_heading
+            # angle while turning right does wrap around 2pi
+            right_angle = current_heading + (2 * np.pi - target_angle)
+        else:
+            # if target angle is less than current heading,
+            # angle while turning right does not wrap around 2pi
+            right_angle = current_heading - target_angle
+            # angle while turning left does wrap around 2pi
+            left_angle = target_angle + (2 * np.pi - current_heading)
 
         # if the current heading is within tolerance of the target angle,
         # move forward = 1
         if np.abs(current_heading - target_angle) < tolerance:
             return 1
 
-        # if the current heading is greater than the target angle,
-        # turn left = 3
-        if current_heading > target_angle:
-            return 3
-
-        # if the current heading is less than the target angle,
-        # turn right = 2
-        if current_heading < target_angle:
+        # if angle to turn left is less than angle to turn right,
+        # turn left = 2
+        if left_angle < right_angle:
             return 2
 
+        # if angle to turn right is less than angle to turn left,
+        # turn right = 3
+        if left_angle > right_angle:
+            return 3
+
     def step(self, action):
+        target_angle = action * (2 * np.pi) - np.pi
+        current_heading = self._get_heading()
         obs = self.env.step(self.action(action))
+        new_heading = self._get_heading()
+
         return obs
 
 
