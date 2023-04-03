@@ -68,12 +68,15 @@ def main():
         base_config.SEED = seed
         base_config.TASK_CONFIG.DATASET.CONTENT_SCENES = [scene_dict[scene]]
         if task == "singlegoal":
+            base_config.GROUP = "SingleGoal"
             base_config.RL.SAC_N.single_goal = True
             base_config.RL.SAC_N.used_inpts = ["position", "heading"]
         elif task == "pointnav_depth":
+            base_config.GROUP = "PointNavDepth"
             base_config.RL.SAC_N.single_goal = False
             base_config.RL.SAC_N.used_inpts = ["depth", "pointgoal_with_gps_compass"]
         elif task == "pointnav":
+            base_config.GROUP = "PointNav"
             base_config.RL.SAC_N.single_goal = False
             base_config.RL.SAC_N.used_inpts = ["position", "heading", "goal_position"]
 
