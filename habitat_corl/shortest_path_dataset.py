@@ -315,8 +315,6 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
                     # np array of rewards
                     rewards = np.where(
                         distances < config.TASK.SUCCESS_DISTANCE, 1, 0)
-                    if 1 in rewards:
-                        print("Goal reached")
                     rpb.extend_rewards(rewards)
 
             elif "done" in dataset:

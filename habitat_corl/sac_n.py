@@ -144,7 +144,7 @@ class Actor(nn.Module):
         mu, log_sigma = self.mu(hidden), self.log_sigma(hidden)
 
         # clipping params from EDAC paper, not as in SAC paper (-20, 2)
-        log_sigma = torch.clamp(log_sigma, -5, 2)
+        log_sigma = torch.clip(log_sigma, -5, 2)
         policy_dist = Normal(mu, torch.exp(log_sigma))
 
         if deterministic:
@@ -471,7 +471,7 @@ def train(config):
         ignore_stop=config.RL.SAC_N.ignore_stop,
     ) as env:
         state_dim = get_input_dims(config)
-        action_dim = 1
+        action_dim = 2
         # action_dim = env.action_space.n
 
         train_episodes, eval_episodes = train_eval_split(
@@ -562,8 +562,8 @@ def train(config):
                     episodes=eval_episodes,
                     seed=config.SEED,
                     used_inputs=config.MODEL.used_inputs,
-                    # video=True,
-                    video=epoch == config.RL.SAC_N.num_epochs - 1,
+                    video=True,
+                    # video=epoch == config.RL.SAC_N.num_epochs - 1,
                     video_dir=config.VIDEO_DIR,
                     video_prefix="sac_n/sac_n",
                     succes_distance=config.TASK_CONFIG.TASK.SUCCESS_DISTANCE,

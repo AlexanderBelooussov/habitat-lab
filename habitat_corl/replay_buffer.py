@@ -174,7 +174,8 @@ class ReplayBuffer:
                     self.next_states[key],
                     dtype=torch.float
                 ).to(device))
-        action = torch.tensor(self.actions, dtype=torch.float).unsqueeze(-1).to(device)
+        # action = torch.tensor(self.actions, dtype=torch.float).unsqueeze(-1).to(device)
+        action = torch.tensor(self.actions, dtype=torch.float).to(device)
         # if continuous_actions:
         #     action = torch.nn.functional.one_hot(action, n_actions).float().to(device)
         reward = torch.tensor(self.rewards, dtype=torch.float).unsqueeze(1).to(device)
@@ -288,22 +289,10 @@ class ReplayBuffer:
 
 
     def to_continuous_actions(self, forward=0.25, turn=10):
-        # actions = np.zeros((len(self.actions), max(self.actions) + 1))
-        # for i, action in enumerate(self.actions):
-        #     # get amount of repeats of current action
-        #     repeats = 1
-        #     for j in range(i + 1, len(self.actions)):
-        #         if action == self.actions[j]:
-        #             repeats += 1
-        #         else:
-        #             break
-        #     actions[i, action] = repeats
-        #
-        # actions *= [1, forward, turn * np.pi / 180, turn * np.pi / 180]
-        # self.actions = actions
         def normalize_angle(angle):
-            return (angle + np.pi) / (2 * np.pi)
-        actions = np.zeros(len(self.actions))
+            a = angle[0]
+            return [np.cos(a), np.sin(a)]
+        actions = np.zeros((len(self.actions), 2))
         for i, action in tqdm(enumerate(self.actions)):
             if action == 1 or action == 0:
                 actions[i] = normalize_angle(self.states['heading'][i])

@@ -35,7 +35,7 @@ class ContinuousActionWrapper(ActionWrapper):
     def __init__(self, env):
         super().__init__(env)
         self.action_space = gym.spaces.Box(
-            low=0.0, high=1.0, shape=(1,), dtype=np.float32
+            low=-1.0, high=1.0, shape=(2,), dtype=np.float32
         )
     def _quat_to_xy_heading(self, quat):
         from habitat.utils.geometry_utils import quaternion_rotate_vector
@@ -56,10 +56,14 @@ class ContinuousActionWrapper(ActionWrapper):
         return self._quat_to_xy_heading(rotation_world_agent.inverse())
 
     def action(self, action):
-        action = action[0]
-        # clip action to [0, 1]
-        action = np.clip(action, 0, 1)
-        target_angle = action * (2 * np.pi)
+        # action = action[0]
+        # # clip action to [0, 1]
+        # action = np.clip(action, 0, 1)
+        # target_angle = action * (2 * np.pi)
+
+        # cartesian to radian angle
+        target_angle = np.arctan2(action[1], action[0])
+        target_angle += np.pi
 
         current_heading = self._get_heading() + np.pi
 
@@ -95,7 +99,7 @@ class ContinuousActionWrapper(ActionWrapper):
             return 3
 
     def step(self, action):
-        target_angle = action * (2 * np.pi) - np.pi
+        # target_angle = action * (2 * np.pi) - np.pi
         current_heading = self._get_heading()
         obs = self.env.step(self.action(action))
         new_heading = self._get_heading()
