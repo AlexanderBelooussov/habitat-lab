@@ -8,7 +8,7 @@ import vaex
 
 import habitat
 from habitat import registry
-from habitat.tasks.nav.nav import EpisodicGPSSensor
+from habitat.tasks.nav.nav import EpisodicGPSSensor, HeadingSensor
 from habitat.tasks.utils import cartesian_to_polar
 from habitat.utils.geometry_utils import quaternion_from_coeff, \
     quaternion_rotate_vector
@@ -29,6 +29,7 @@ non_image_state_datasets = [
     "state_pointgoal",
     "state_pointgoal_with_gps_compass",
     "state_goal_position",
+    "state_heading_vec",
 ]
 
 
@@ -86,7 +87,19 @@ class GoalPositionSensor(EpisodicGPSSensor):
         return goal_position
 
 
-def register_position_sensor(config):
+@registry.register_sensor(name="HeadingVecSensor")
+class HeadingVecSensor(HeadingSensor):
+    cls_uuid: str = "heading_vec"
+    def get_observation(
+        self, observations, episode, *args: Any, **kwargs: Any
+    ):
+        heading = super().get_observation(observations, episode, *args, **kwargs)[0]
+        vec = [np.cos(heading), np.sin(heading)]
+        return vec
+
+
+
+def register_new_sensors(config):
     config.defrost()
     config.TASK.AGENT_POSITION_SENSOR = habitat.config.Config()
     config.TASK.AGENT_POSITION_SENSOR.TYPE = "PositionSensor"
@@ -95,6 +108,11 @@ def register_position_sensor(config):
     config.TASK.AGENT_GOAL_POSITION_SENSOR = habitat.config.Config()
     config.TASK.AGENT_GOAL_POSITION_SENSOR.TYPE = "GoalPositionSensor"
     config.TASK.SENSORS.append("AGENT_GOAL_POSITION_SENSOR")
+
+    config.TASK.AGENT_HEADING_VEC_SENSOR = habitat.config.Config()
+    config.TASK.AGENT_HEADING_VEC_SENSOR.TYPE = "HeadingVecSensor"
+    config.TASK.SENSORS.append("AGENT_HEADING_VEC_SENSOR")
+
     config.freeze()
     return config
 
@@ -193,7 +211,7 @@ def generate_shortest_path_dataset(config, train_episodes=None,
     if hasattr(config, "TASK_CONFIG"):
         config = config.TASK_CONFIG
 
-    config = register_position_sensor(config)
+    config = register_new_sensors(config)
 
     stored_eps = {}
     for scene in get_stored_scenes(config):
@@ -287,11 +305,13 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
             if "next_state" in dataset:
                 rpb.extend_next_states(
                     copy.deepcopy(df[dataset].values[:n_steps]),
-                    dataset.split("state_")[1])
+                    dataset.split("state_")[1]
+                )
             elif "state" in dataset:
                 rpb.extend_states(
                     copy.deepcopy(df[dataset].values[:n_steps]),
-                    dataset.split("state_")[1])
+                    dataset.split("state_")[1]
+                )
             elif "action" in dataset:
                 ds = "action"
                 actions = copy.deepcopy(df[ds].values[:n_steps])
@@ -506,8 +526,6 @@ def calc_mean_std(config, groups=None, used_inputs=None):
             all_data = np.concatenate(all_data, axis=0)
             stats[ds] = (np.mean(all_data, axis=0), np.std(all_data, axis=0))
 
-
-
     if used_inputs is not None:
         used_mean = []
         used_std = []
@@ -586,7 +604,50 @@ def main():
         generate_shortest_path_dataset(config, overwrite=overwrite)
 
 
+def augment_dataset():
+    paths = [
+        "data/sp_datasets/datasets_medium_no_depth.hdf5",
+        "data/sp_datasets/fulldatasets_medium_no_depth.hdf5",
+        "data/sp_datasets/datasets_small_no_depth.hdf5",
+        "data/sp_datasets/datasets_large_no_depth.hdf5",
+        "data/sp_datasets/datasets_long_hallway_no_depth.hdf5",
+        "data/sp_datasets/datasets_xl_no_depth.hdf5",
+    ]
+
+    for path in paths:
+        groups = []
+        with h5py.File(path, "r") as hf:
+            for scene in hf:
+                for episode in hf[scene]:
+                    groups.append(f"{scene}/{episode}")
+        for group in tqdm(groups, desc="Augmenting dataset"):
+            # add a dataset "heading_vec", containing the heading vector of the agent
+            # as a 2D vector
+            df = vaex.open(path, group=group)
+            if "state_heading_vec" in df.get_column_names():
+                print(f"Skipping {group}")
+            heading = df["state_heading"].values
+            heading_vec = np.stack([np.cos(heading), np.sin(heading)], axis=1)
+            # flatten last dimension
+            heading_vec = heading_vec.reshape(heading_vec.shape[:-1])
+            df.add_column("state_heading_vec", heading_vec)
+
+            # same for next_state
+            heading = df["next_state_heading"].values
+            heading_vec = np.stack([np.cos(heading), np.sin(heading)], axis=1)
+            # flatten last dimension
+            heading_vec = heading_vec.reshape(heading_vec.shape[:-1])
+            df.add_column("next_state_heading_vec", heading_vec)
+
+            df.export_hdf5(path, group=group, mode="a")
+            df.close()
+
+
+
+
 if __name__ == "__main__":
     # config = habitat.get_config("configs/tasks/pointnav_mp3d_medium.yaml")
     # sample_transitions(config, 256)
     main()
+    #
+    # augment_dataset()

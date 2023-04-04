@@ -27,7 +27,7 @@ from habitat_corl.common.utils import restructure_results, train_eval_split, \
 from habitat_corl.common.wrappers import wrap_env
 from habitat_corl.replay_buffer import get_input_dims, ReplayBuffer
 from habitat_corl.shortest_path_dataset import calc_mean_std, \
-    get_stored_groups, register_position_sensor
+    get_stored_groups, register_new_sensors
 from habitat_baselines.config.default import get_config
 
 
@@ -573,7 +573,7 @@ def main():
     args = parser.parse_args()
 
     config = get_config(args.config)
-    register_position_sensor(config.TASK_CONFIG)
+    register_new_sensors(config.TASK_CONFIG)
     train(config)
 
 

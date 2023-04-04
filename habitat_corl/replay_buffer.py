@@ -295,12 +295,18 @@ class ReplayBuffer:
         actions = np.zeros((len(self.actions), 2))
         for i, action in tqdm(enumerate(self.actions)):
             if action == 1 or action == 0:
-                actions[i] = normalize_angle(self.states['heading'][i])
+                if "heading_vec" in self.states:
+                    actions[i] = self.states['heading_vec'][i]
+                else:
+                    actions[i] = normalize_angle(self.states['heading'][i])
             else:
                 # look for next different action
                 for j in range(i + 1, len(self.actions)):
                     if self.actions[j] != action or j == len(self.actions) - 1:
-                        actions[i] = normalize_angle(self.states['heading'][j])
+                        if "heading_vec" in self.states:
+                            actions[i] = self.states['heading_vec'][j]
+                        else:
+                            actions[i] = normalize_angle(self.states['heading'][j])
                         break
 
         self.actions = actions
@@ -386,6 +392,8 @@ def get_input_dims(config):
         linear_input_size += config.TASK_CONFIG.TASK.POINTGOAL_SENSOR.DIMENSIONALITY
     if "goal_position" in config.MODEL.used_inputs:
         linear_input_size += 3
+    if "heading_vec" in config.MODEL.used_inputs:
+        linear_input_size += 2
 
     return linear_input_size
 

@@ -2,7 +2,7 @@ import argparse
 
 import habitat_corl.sac_n
 from habitat_baselines.config.default import get_config
-from habitat_corl.shortest_path_dataset import register_position_sensor
+from habitat_corl.shortest_path_dataset import register_new_sensors
 
 scene_dict = {
     "medium": "17DRP5sb8fy",
@@ -65,8 +65,6 @@ def main():
         base_config.defrost()
         base_config.RL.SAC_N.ignore_stop = True
         base_config.RL.SAC_N.eval_episodes = n_eval_episodes
-        base_config.SEED = seed
-        base_config.TASK_CONFIG.DATASET.CONTENT_SCENES = [scene_dict[scene]]
         if task == "singlegoal":
             base_config.GROUP = "SingleGoal"
             base_config.RL.SAC_N.single_goal = True
@@ -74,7 +72,7 @@ def main():
         elif task == "pointnav_depth":
             base_config.GROUP = "PointNavDepth"
             base_config.RL.SAC_N.single_goal = False
-            base_config.RL.SAC_N.used_inpts = ["depth", "pointgoal_with_gps_compass"]
+            base_config.RL.SAC_N.used_inpts = ["depth", "pointgoal_with_gps_compass", "heading"]
         elif task == "pointnav":
             base_config.GROUP = "PointNav"
             base_config.RL.SAC_N.single_goal = False
@@ -82,8 +80,33 @@ def main():
 
         base_config.freeze()
 
-        register_position_sensor(base_config.TASK_CONFIG)
+        register_new_sensors(base_config.TASK_CONFIG)
         habitat_corl.sac_n.train(base_config)
+
+    elif algorithm == "dt":
+        config = "habitat_corl/configs/dt_pointnav.yaml"
+        config = get_config(config, [])
+        config.defrost()
+        config.RL.DT.ignore_stop = ignore_stop
+        config.RL.DT.eval_episodes = n_eval_episodes
+        config.SEED = seed
+        config.TASK_CONFIG.DATASET.CONTENT_SCENES = [scene_dict[scene]]
+        if task == "singlegoal":
+            config.GROUP = "SingleGoal"
+            config.RL.DT.single_goal = True
+            config.RL.DT.used_inpts = ["position", "heading"]
+        elif task == "pointnav_depth":
+            config.GROUP = "PointNavDepth"
+            config.RL.DT.single_goal = False
+            config.RL.DT.used_inpts = ["depth", "pointgoal_with_gps_compass", "heading"]
+        elif task == "pointnav":
+            config.GROUP = "PointNav"
+            config.RL.DT.single_goal = False
+            config.RL.DT.used_inpts = ["position", "heading", "goal_position"]
+
+        config.freeze()
+        register_new_sensors(config.TASK_CONFIG)
+        habitat_corl.dt.train(config)
 
 if __name__ == "__main__":
     main()

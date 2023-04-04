@@ -60,8 +60,8 @@ WANDB_KEY: "88503bf83ff0a806be0ebc012f36e98fb193348a"
 
 MODEL:
   # selecting inputs to use
-#  used_inputs: ["position", "heading", "goal_position"]
-  used_inputs: ["position", "heading"]
+#  used_inputs: ["position", "heading_vec", "goal_position"]
+  used_inputs: ["position", "heading_vec"]
   ablate_depth: False
   ablate_rgb: False
   num_recurrent_layers: 2
