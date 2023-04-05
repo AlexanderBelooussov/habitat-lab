@@ -76,13 +76,15 @@ def set_seed(
 
 
 def wandb_init(config) -> None:
+    wandb.login(key=config.WANDB_KEY)
+    device = "cpu" if torch.cuda.is_available() else "gpu"
     wandb.init(
         config=config,
         project=config.PROJECT,
         group=config.GROUP,
         name=config.NAME,
         id=str(uuid.uuid4()),
-        mode="disabled"
+        mode="disabled" if device == "cpu" else "online",
     )
     wandb.run.save()
 

@@ -8,6 +8,7 @@ from habitat_corl.shortest_path_dataset import register_new_sensors
 
 scene_dict = {
     "medium": "17DRP5sb8fy",
+    "debug": "17DRP5sb8fy",
     "small": "Pm6F8kyY3z2",
     "large": "XcA2TqTSSAj",
     "long_hallway": "Vt2qJdWjCF2",
@@ -48,7 +49,7 @@ def main():
         "--scene",
         type=str,
         default="medium",
-        choices=["medium", "large", "small", "xl"],
+        choices=["medium", "large", "small", "xl", "debug"],
         help="Scene to use",
     )
 
@@ -103,6 +104,9 @@ def main():
         config.GROUP = "PointNav"
         algo_config.single_goal = False
         config.MODEL.used_inputs = ["position", "heading_vec", "goal_position"]
+
+    if scene == "debug":
+        config.TASK_CONFIG.DATASET.SP_DATASET_PATH = "data/sp_datasets/debug_datasets_medium_no_depth.hdf5"
 
     config.freeze()
     register_new_sensors(config.TASK_CONFIG)

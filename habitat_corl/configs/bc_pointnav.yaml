@@ -43,6 +43,7 @@ RL:
 PROJECT: "habitat"
 GROUP: "BC-habitat"
 NAME: "BC"
+WANDB_KEY: "88503bf83ff0a806be0ebc012f36e98fb193348a"
 
 MODEL:
   # selecting inputs to use
