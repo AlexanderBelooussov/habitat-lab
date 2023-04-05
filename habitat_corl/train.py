@@ -1,6 +1,7 @@
 import argparse
 
 import habitat_corl.sac_n
+import habitat_corl.dt
 from habitat_baselines.config.default import get_config
 from habitat_corl.shortest_path_dataset import register_new_sensors
 
@@ -68,15 +69,15 @@ def main():
         if task == "singlegoal":
             base_config.GROUP = "SingleGoal"
             base_config.RL.SAC_N.single_goal = True
-            base_config.RL.SAC_N.used_inpts = ["position", "heading"]
+            base_config.RL.SAC_N.used_inpts = ["position", "heading_vec"]
         elif task == "pointnav_depth":
             base_config.GROUP = "PointNavDepth"
             base_config.RL.SAC_N.single_goal = False
-            base_config.RL.SAC_N.used_inpts = ["depth", "pointgoal_with_gps_compass", "heading"]
+            base_config.RL.SAC_N.used_inpts = ["depth", "pointgoal_with_gps_compass", "heading_vec"]
         elif task == "pointnav":
             base_config.GROUP = "PointNav"
             base_config.RL.SAC_N.single_goal = False
-            base_config.RL.SAC_N.used_inpts = ["position", "heading", "goal_position"]
+            base_config.RL.SAC_N.used_inpts = ["position", "heading_vec", "goal_position"]
 
         base_config.freeze()
 
@@ -91,18 +92,20 @@ def main():
         config.RL.DT.eval_episodes = n_eval_episodes
         config.SEED = seed
         config.TASK_CONFIG.DATASET.CONTENT_SCENES = [scene_dict[scene]]
+        if ignore_stop:
+            config.NAME += "-ignore_stop"
         if task == "singlegoal":
             config.GROUP = "SingleGoal"
             config.RL.DT.single_goal = True
-            config.RL.DT.used_inpts = ["position", "heading"]
+            config.RL.DT.used_inputs = ["position", "heading_vec"]
         elif task == "pointnav_depth":
             config.GROUP = "PointNavDepth"
             config.RL.DT.single_goal = False
-            config.RL.DT.used_inpts = ["depth", "pointgoal_with_gps_compass", "heading"]
+            config.RL.DT.used_inputs = ["depth", "pointgoal_with_gps_compass", "heading_vec"]
         elif task == "pointnav":
             config.GROUP = "PointNav"
             config.RL.DT.single_goal = False
-            config.RL.DT.used_inpts = ["position", "heading", "goal_position"]
+            config.RL.DT.used_inputs = ["position", "heading_vec", "goal_position"]
 
         config.freeze()
         register_new_sensors(config.TASK_CONFIG)
