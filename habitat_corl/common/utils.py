@@ -32,7 +32,8 @@ def restructure_results(info_list: List[Dict[str, Any]]) -> Dict[str, Any]:
     return final
 
 
-def train_eval_split(env, config, n_eval_episodes: int = 10, single_goal=False):
+def train_eval_split(env, config, n_eval_episodes: int = 10,
+                     single_goal=False):
     all_episodes = env.episodes
     eval_episodes = np.random.choice(all_episodes,
                                      n_eval_episodes,
@@ -60,6 +61,7 @@ def train_eval_split(env, config, n_eval_episodes: int = 10, single_goal=False):
 
     return train_episodes, eval_episodes
 
+
 def set_seed(
     seed: int, env: Optional[gym.Env] = None, deterministic_torch: bool = False
 ):
@@ -76,8 +78,9 @@ def set_seed(
 
 
 def wandb_init(config) -> None:
+    # check cuda device
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     wandb.login(key=config.WANDB_KEY)
-    device = "cpu" if torch.cuda.is_available() else "gpu"
     wandb.init(
         config=config,
         project=config.PROJECT,
@@ -87,6 +90,10 @@ def wandb_init(config) -> None:
         mode="disabled" if device == "cpu" else "online",
     )
     wandb.run.save()
+    print(f"=======================================")
+    print(f"Name: {config.NAME}")
+    print(f"Group: {config.GROUP}")
+    print(f"=======================================")
 
 
 
@@ -154,6 +161,7 @@ def eval_actor(
         if video:
             make_videos(video_frames, video_prefix, i)
     return restructure_results(results)
+
 
 def get_goal(algorithn_config, eval_episodes):
     if algorithn_config.single_goal:

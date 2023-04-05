@@ -88,14 +88,25 @@ class Actor(nn.Module):
 
     def forward(self, state) -> torch.Tensor:
         if isinstance(state, np.ndarray):
-            state = torch.from_numpy(state).float()
-        state.to(self.device)
+            state = torch.tensor(state, dtype=torch.float32, device=self.device)
         return self.net(state)
 
     @torch.no_grad()
     def act(self, state, device: str = "cpu") -> int:
+        if isinstance(state, np.ndarray):
+            state = torch.tensor(state, dtype=torch.float32, device=device)
+
+        # make sure net is on the same device as state
+        if device != self.device:
+            self.net.to(device)
+
         action = self.forward(state)
         action = torch.argmax(action).item()
+
+        # move net back to original device
+        if device != self.device:
+            self.net.to(self.device)
+
         return action
 
 
@@ -153,7 +164,7 @@ def train(config):
 
     set_seed(config.SEED)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     mean_std = calc_mean_std(config.TASK_CONFIG,
                              used_inputs=config.MODEL.used_inputs)
