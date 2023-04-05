@@ -33,10 +33,10 @@ RL:
     DISCOUNT: 0.99  # Discount factor
     # BC
     BUFFER_SIZE:  2_000_000  # Replay buffer size
-    FRAC: 1.0  # Best data fraction to use
-    MAX_TRAJ_LEN: 500  # Max trajectory length
+    FRAC: 0.1  # Best data fraction to use
+    MAX_TRAJ_LEN: 1000  # Max trajectory length
     NORMALIZE: True  # Normalize states
-    ignore_stop: True
+    ignore_stop: False
     load_full_dataset: True
 
 # Wandb logging

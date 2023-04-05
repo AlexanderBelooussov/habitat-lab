@@ -26,9 +26,9 @@ RL:
     name: "PointNavResNetPolicy"
   SAC_N:
     hidden_dim: 256
-    num_critics: 10
+    num_critics: 25
     gamma: 0.99
-    tau: 0.0005
+    tau: 0.005
     actor_learning_rate: 0.0003
     critic_learning_rate: 0.0003
     alpha_learning_rate: 0.0003

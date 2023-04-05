@@ -39,7 +39,7 @@ def main():
     parser.add_argument(
         "--n_eval_episodes",
         type=int,
-        default=20,
+        default=100,
         help="Number of episodes to evaluate on",
     )
     parser.add_argument(
@@ -107,6 +107,7 @@ def main():
 
     if scene == "debug":
         config.TASK_CONFIG.DATASET.SP_DATASET_PATH = "data/sp_datasets/debug_datasets_medium_no_depth.hdf5"
+        algo_config.eval_episodes = 1
 
     config.freeze()
     register_new_sensors(config.TASK_CONFIG)

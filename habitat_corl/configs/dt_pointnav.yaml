@@ -26,8 +26,7 @@ RL:
   DT:
     # model params
     embedding_dim: 128
-#    num_layers: 3
-    num_layers: 1
+    num_layers: 3
     num_heads: 1
     seq_len: 20
     episode_len: 1000
@@ -45,8 +44,8 @@ RL:
     update_steps: 100_000
     warmup_steps: 10_000
     reward_scale: 0.001
-    num_workers: 1
-#    num_workers: 4
+#    num_workers: 1
+    num_workers: 4
     # evaluation params
 #    target_returns: (12000.0, 6000.0)
     target_returns: (1.0)
