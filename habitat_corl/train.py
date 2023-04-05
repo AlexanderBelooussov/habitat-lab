@@ -96,6 +96,7 @@ def main():
             config.NAME += "-ignore_stop"
         if task == "singlegoal":
             config.GROUP = "SingleGoal"
+            config.RL.DT.target_returns = "(1.0, 10.0)"
             config.RL.DT.single_goal = True
             config.RL.DT.used_inputs = ["position", "heading_vec"]
         elif task == "pointnav_depth":

@@ -193,7 +193,9 @@ class TransformerBlock(nn.Module):
     def forward(
         self, x: torch.Tensor, padding_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
-        causal_mask = self.causal_mask[: x.shape[1], : x.shape[1]]
+        # x = x.permute(1, 0, 2)
+        # causal_mask = self.causal_mask[: x.shape[1], : x.shape[1]]
+        causal_mask = self.causal_mask[: x.shape[0], : x.shape[0]]
 
         norm_x = self.norm1(x)
         attention_out = self.attention(
@@ -304,7 +306,7 @@ class DecisionTransformer(nn.Module):
         out = self.emb_norm(sequence)
         out = self.emb_drop(out)
         out = out.permute(1, 0, 2)
-
+        # padding_mask = padding_mask.permute(1, 0) if padding_mask is not None else None
         for block in self.blocks:
             out = block(out, padding_mask=padding_mask)
         out = out.permute(1, 0, 2)
@@ -315,7 +317,7 @@ class DecisionTransformer(nn.Module):
         return out
 
 
-# Training and evaluation logic
+    # Training and evaluation logic
 @torch.no_grad()
 def eval_rollout(
     model: DecisionTransformer,
