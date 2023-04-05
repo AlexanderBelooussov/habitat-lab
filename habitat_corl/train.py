@@ -2,6 +2,7 @@ import argparse
 
 import habitat_corl.sac_n
 import habitat_corl.dt
+import habitat_corl.any_percent_bc
 from habitat_baselines.config.default import get_config
 from habitat_corl.shortest_path_dataset import register_new_sensors
 
@@ -61,56 +62,61 @@ def main():
     scene = args.scene
 
     if algorithm == "sacn" and task != "objectnav":
-        base_config = "habitat_corl/configs/sacn_pointnav.yaml"
-        base_config = get_config(base_config, [])
-        base_config.defrost()
-        base_config.RL.SAC_N.ignore_stop = True
-        base_config.RL.SAC_N.eval_episodes = n_eval_episodes
-        if task == "singlegoal":
-            base_config.GROUP = "SingleGoal"
-            base_config.RL.SAC_N.single_goal = True
-            base_config.RL.SAC_N.used_inpts = ["position", "heading_vec"]
-        elif task == "pointnav_depth":
-            base_config.GROUP = "PointNavDepth"
-            base_config.RL.SAC_N.single_goal = False
-            base_config.RL.SAC_N.used_inpts = ["depth", "pointgoal_with_gps_compass", "heading_vec"]
-        elif task == "pointnav":
-            base_config.GROUP = "PointNav"
-            base_config.RL.SAC_N.single_goal = False
-            base_config.RL.SAC_N.used_inpts = ["position", "heading_vec", "goal_position"]
-
-        base_config.freeze()
-
-        register_new_sensors(base_config.TASK_CONFIG)
-        habitat_corl.sac_n.train(base_config)
+        config = "habitat_corl/configs/sacn_pointnav.yaml"
+        config = get_config(config, [])
+        config.defrost()
+        algo_config = config.RL.SAC_N
 
     elif algorithm == "dt":
         config = "habitat_corl/configs/dt_pointnav.yaml"
         config = get_config(config, [])
         config.defrost()
-        config.RL.DT.ignore_stop = ignore_stop
-        config.RL.DT.eval_episodes = n_eval_episodes
-        config.SEED = seed
-        config.TASK_CONFIG.DATASET.CONTENT_SCENES = [scene_dict[scene]]
-        if ignore_stop:
-            config.NAME += "-ignore_stop"
-        if task == "singlegoal":
-            config.GROUP = "SingleGoal"
-            config.RL.DT.target_returns = "(1.0, 10.0)"
-            config.RL.DT.single_goal = True
-            config.RL.DT.used_inputs = ["position", "heading_vec"]
-        elif task == "pointnav_depth":
-            config.GROUP = "PointNavDepth"
-            config.RL.DT.single_goal = False
-            config.RL.DT.used_inputs = ["depth", "pointgoal_with_gps_compass", "heading_vec"]
-        elif task == "pointnav":
-            config.GROUP = "PointNav"
-            config.RL.DT.single_goal = False
-            config.RL.DT.used_inputs = ["position", "heading_vec", "goal_position"]
+        algo_config = config.RL.DT
 
-        config.freeze()
-        register_new_sensors(config.TASK_CONFIG)
+    elif algorithm == "bc":
+        config = "habitat_corl/configs/bc_pointnav.yaml"
+        config = get_config(config, [])
+        config.defrost()
+        algo_config = config.RL.BC
+    else:
+        raise ValueError("Invalid algorithm/task combination")
+
+    algo_config.ignore_stop = ignore_stop
+    algo_config.eval_episodes = n_eval_episodes
+    config.SEED = seed
+    config.TASK_CONFIG.DATASET.CONTENT_SCENES = [scene_dict[scene]]
+
+    if ignore_stop:
+        config.NAME += "-ignore_stop"
+    if task == "singlegoal":
+        config.GROUP = "SingleGoal"
+        if algorithm == "dt":
+            algo_config.target_returns = "(1.0, 10.0)"
+        algo_config.single_goal = True
+        config.MODEL.used_inputs = ["position", "heading_vec"]
+    elif task == "pointnav_depth":
+        config.GROUP = "PointNavDepth"
+        algo_config.single_goal = False
+        config.MODEL.used_inputs = ["depth", "pointgoal_with_gps_compass",
+                                    "heading_vec"]
+    elif task == "pointnav":
+        config.GROUP = "PointNav"
+        algo_config.single_goal = False
+        config.MODEL.used_inputs = ["position", "heading_vec", "goal_position"]
+
+    config.freeze()
+    register_new_sensors(config.TASK_CONFIG)
+
+    if algorithm == "sacn":
+        habitat_corl.sac_n.train(config)
+    elif algorithm == "dt":
         habitat_corl.dt.train(config)
+    elif algorithm == "bc":
+        habitat_corl.any_percent_bc.train(config)
+    else:
+        raise ValueError("Invalid algorithm")
+
+
 
 if __name__ == "__main__":
     main()

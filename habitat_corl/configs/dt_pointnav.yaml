@@ -50,7 +50,7 @@ RL:
     # evaluation params
 #    target_returns: (12000.0, 6000.0)
     target_returns: (1.0)
-    eval_episodes: 20
+    eval_episodes: 1
     eval_every: 1_000
     # general params
     deterministic_torch: False

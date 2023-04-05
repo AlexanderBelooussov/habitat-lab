@@ -1,33 +1,30 @@
 import argparse
-from typing import Any, Dict, List, Optional, Tuple, Union
-
-from tqdm import tqdm
 import os
-from pathlib import Path
 import random
 import uuid
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import gym
+import h5py
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import wandb
+from tqdm import tqdm
 
 import habitat
 from habitat.utils.visualizations.utils import images_to_video, \
     observations_to_image
-from habitat_baselines.common.baseline_registry import baseline_registry
-
-from habitat_corl.replay_buffer import ReplayBuffer
 from habitat_baselines.config.default import get_config
-from habitat_corl.shortest_path_dataset import generate_shortest_path_dataset, \
-    sample_transitions, register_position_sensor, dataset_episodes, \
-    calc_mean_std
-from habitat_baselines.il.common.encoders.resnet_encoders import \
-    ResnetRGBEncoder, VlnResnetDepthEncoder, ResnetSemSeqEncoder
-
-from scipy.spatial.transform import Rotation as R
+from habitat_corl.common.wrappers import wrap_env
+from habitat_corl.replay_buffer import ReplayBuffer, get_input_dims
+from habitat_corl.shortest_path_dataset import sample_transitions, \
+    register_new_sensors, \
+    calc_mean_std, get_stored_episodes, batch_generator
+from habitat_corl.common.utils import set_seed, wandb_init, eval_actor, \
+    get_goal, train_eval_split
 
 TensorBatch = List[torch.Tensor]
 
@@ -39,135 +36,32 @@ def soft_update(target: nn.Module, source: nn.Module, tau: float):
             (1 - tau) * target_param.data + tau * source_param.data)
 
 
-def set_seed(
-    seed: int, env: Optional[gym.Env] = None, deterministic_torch: bool = False
-):
-    if env is not None:
-        env.seed(seed)
-        env.action_space.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.manual_seed(seed)
-    if deterministic_torch:
-        torch.backends.cudnn.benchmark = False
-        torch.backends.cudnn.deterministic = True
-
-
-def wandb_init(config) -> None:
-    wandb.init(
-        config=config,
-        project=config.PROJECT,
-        group=config.GROUP,
-        name=config.NAME,
-        id=str(uuid.uuid4()),
-        mode="disabled"
-    )
-    wandb.run.save()
-
-
-@torch.no_grad()
-def eval_actor(
-    env,
-    actor,
-    device,
-    episodes,
-    seed,
-    max_traj_len=1000,
-    used_inputs=["pointgoal_with_gps_compass"],
-    video=False,
-    video_dir="demos",
-    video_prefix="demo",
-    normalization_stats=None,
-):
-    if normalization_stats is None:
-        normalization_stats = {}
-
-    def make_videos(observations_list, output_prefix, ep_id):
-        prefix = output_prefix + "_{}".format(ep_id)
-        images_to_video(observations_list, output_dir=video_dir,
-                        video_name=prefix)
-
-    # run the agent for n_episodes
-    env.episodes = episodes
-    env.episode_iterator = iter(episodes)
-    results = []
-    for i in tqdm(range(len(episodes)), desc="eval", leave=False):
-        video_frames = []
-        env.seed(seed)  # needed?
-        observations = env.reset()
-        for step in range(max_traj_len):
-            state = []
-            for k in used_inputs:
-                obs = observations[k]
-                if k in normalization_stats:
-                    obs = (obs - normalization_stats[k][0]) / \
-                          (normalization_stats[k][1] + 1e-8)
-                state.extend(obs)
-            state = torch.tensor(state, dtype=torch.float).to(device)
-            action = actor.act(state)
-            action_name = env.task.get_action_name(action)
-            observations = env.step(action)
-            info = env.get_metrics()
-            if video:
-                frame = observations_to_image(observations, info)
-                video_frames.append(frame)
-            if action_name == "STOP" or env.episode_over:
-                print(f"Episode {i} finished after {step} steps")
-                break
-
-        info = env.get_metrics()
-        results.append(info)
-        if video:
-            make_videos(video_frames, video_prefix, i)
-
-    # reformulate results
-    final = {}
-    for k in results[0].keys():
-        if k == "top_down_map":
-            continue
-        final[k] = [r[k] for r in results]
-    return final
-
-
 def keep_best_trajectories(
-    dataset: ReplayBuffer,
+    config,
+    groups: List[str],
     frac: float,
     discount: float,
     max_episode_steps: int = 1000,
 ):
-    # TODO: make this work with hdf5
-    ids_by_trajectories = []
+    if frac == 1.0:
+        return groups
     returns = []
-    cur_ids = []
-    cur_return = 0
-    reward_scale = 1.0
-    for i, (reward, done) in enumerate(zip(dataset.rewards, dataset.dones)):
-        cur_return += reward_scale * reward
-        cur_ids.append(i)
-        reward_scale *= discount
-        if done or len(cur_ids) == max_episode_steps:
-            ids_by_trajectories.append(list(cur_ids))
-            returns.append(cur_return)
-            cur_ids = []
+    with h5py.File(config.DATASET.SP_DATASET_PATH, "r") as f:
+        for idx, dataset in enumerate(groups):
+            rewards = f[dataset + "/rewards"][:]
+            dones = f[dataset + "/dones"][:]
             cur_return = 0
             reward_scale = 1.0
+            for i, (reward, done) in enumerate(zip(rewards, dones)):
+                cur_return += reward_scale * reward
+                reward_scale *= discount
+                if done or i == max_episode_steps:
+                    returns.append(cur_return)
+                    break
 
     sort_ord = np.argsort(returns, axis=0)[::-1].reshape(-1)
     top_trajs = sort_ord[: int(frac * len(sort_ord))]
-
-    order = []
-    for i in top_trajs:
-        order += ids_by_trajectories[i]
-    order = np.array(order)
-
-    dataset.dones = np.take(dataset.dones, order, axis=0)
-    dataset.rewards = np.take(dataset.rewards, order, axis=0)
-    dataset.actions = np.take(dataset.actions, order, axis=0)
-    for key in dataset.states:
-        dataset.states[key] = np.take(dataset.states[key], order, axis=0)
-        dataset.next_states[key] = np.take(dataset.next_states[key], order,
-                                           axis=0)
+    return [groups[i] for i in top_trajs]
 
 
 class Actor(nn.Module):
@@ -180,33 +74,7 @@ class Actor(nn.Module):
         self.device = torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu")
 
-        # model_config = self.config.MODEL
-        # model_config.defrost()
-        # model_config.TORCH_GPU_ID = 0
-        # model_config.freeze()
-        #
-        # observation_space = self.env.observation_space
-        # policy = baseline_registry.get_policy(self.config.RL.POLICY.name)
-        # self.policy = policy.from_config(
-        #     self.config, observation_space, self.env.action_space
-        # )
-        # self.policy.to(self.device)
-
-        self.linear_input_size = 0
-        if "pointgoal_with_gps_compass" in config.MODEL.used_inputs:
-            self.linear_input_size += config.TASK_CONFIG.TASK.POINTGOAL_WITH_GPS_COMPASS_SENSOR.DIMENSIONALITY
-        if "proximity" in config.MODEL.used_inputs:
-            self.linear_input_size += 1
-        if "agent_map_coord" in config.MODEL.used_inputs:
-            self.linear_input_size += 2
-        if "agent_angle" in config.MODEL.used_inputs:
-            self.linear_input_size += 1
-        if "position" in config.MODEL.used_inputs:
-            self.linear_input_size += 3
-        if "heading" in config.MODEL.used_inputs:
-            self.linear_input_size += 1
-        if "pointgoal" in config.MODEL.used_inputs:
-            self.linear_input_size += config.TASK_CONFIG.TASK.POINTGOAL_SENSOR.DIMENSIONALITY
+        self.linear_input_size = get_input_dims(config)
 
         action_dim = env.action_space.n
         self.net = nn.Sequential(
@@ -219,6 +87,8 @@ class Actor(nn.Module):
         ).to(self.device)
 
     def forward(self, state) -> torch.Tensor:
+        if isinstance(state, np.ndarray):
+            state = torch.from_numpy(state).float()
         state.to(self.device)
         return self.net(state)
 
@@ -244,27 +114,16 @@ class BC:  # noqa
         self.total_it = 0
         self.device = device
 
-    def train(self, batch: TensorBatch, used_inputs) -> Dict[str, float]:
+    def train(self, batch: ReplayBuffer, used_inputs) -> Dict[str, float]:
         log_dict = {}
         self.total_it += 1
 
-        states = batch.states
-        actions = batch.actions
-
-        # transform state to tensor
-        transitions = []
-        for i in range(len(actions)):
-            transition_obs = []
-            for k in used_inputs:
-                transition_obs.extend(states[k][i])
-            transitions.append(
-                torch.tensor(transition_obs, device=self.device))
-        states = torch.stack(transitions)
+        state, action, _, _, _ = batch.to_tensor(state_keys=used_inputs)
 
         # Compute actor loss
-        pi = self.actor(states)
+        pi = self.actor(state)
         # actor_loss = F.mse_loss(pi, action)
-        actor_loss = F.cross_entropy(pi, actions.long())
+        actor_loss = F.cross_entropy(pi, action.long())
         log_dict["actor_loss"] = actor_loss.item()
         # Optimize the actor
         self.actor_optimizer.zero_grad()
@@ -286,33 +145,41 @@ class BC:  # noqa
         self.total_it = state_dict["total_it"]
 
 
-def train(config_path):
-    config = get_config(config_path)
+def train(config):
     if "position" in config.MODEL.used_inputs:
         config.defrost()
-        config.TASK_CONFIG = register_position_sensor(config.TASK_CONFIG)
+        config.TASK_CONFIG = register_new_sensors(config.TASK_CONFIG)
         config.freeze()
 
     set_seed(config.SEED)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    with habitat.Env(config=config.TASK_CONFIG) as env:
-        # dataset = d4rl.qlearning_dataset(env)
-        all_episodes = env.episodes
-        # eval_episodes = np.random.choice(all_episodes,
-        #                                  config.RL.BC.EVAL_EPISODES,
-        #                                  replace=False)
-        # train_episodes = np.setdiff1d(all_episodes, eval_episodes)
-        # env.episodes = train_episodes
-        ep_ids = dataset_episodes(config.TASK_CONFIG)[-1]
-        ep_ids = [ep_ids]
-        eval_episodes = [ep for ep in all_episodes if
-                         str(ep.episode_id) in ep_ids]
+    mean_std = calc_mean_std(config.TASK_CONFIG,
+                             used_inputs=config.MODEL.used_inputs)
 
-        mean_std = calc_mean_std(config.TASK_CONFIG)
-        # keep_best_trajectories(dataset, config.RL.BC.FRAC,
-        #                        config.RL.BC.DISCOUNT)
+    with wrap_env(
+        habitat.Env(config=config.TASK_CONFIG),
+        state_mean=mean_std["used"][0],
+        state_std=mean_std["used"][1],
+        used_inputs=config.MODEL.used_inputs,
+        continuous=False,
+        ignore_stop=config.RL.BC.ignore_stop,
+    ) as env:
+        # dataset = d4rl.qlearning_dataset(env)
+        train_episodes, eval_episodes = train_eval_split(
+            env=env,
+            config=config,
+            n_eval_episodes=config.RL.BC.eval_episodes,
+            single_goal=config.RL.BC.single_goal,
+        )
+        train_episodes = keep_best_trajectories(
+            config=config.TASK_CONFIG,
+            groups=train_episodes,
+            discount=config.RL.BC.DISCOUNT,
+            frac=config.RL.BC.FRAC,
+            max_episode_steps=config.RL.BC.MAX_TRAJ_LEN,
+        )
 
         if hasattr(config,
                    "CHECKPOINT_FOLDER") and config.CHECKPOINT_FOLDER is not None:
@@ -352,14 +219,20 @@ def train(config_path):
         wandb_init(config)
 
         evaluations = []
+        batch_gen = batch_generator(
+            config.TASK_CONFIG,
+            n_transitions=config.RL.BC.batch_size,
+            groups=train_episodes,
+            use_full_dataset=config.RL.BC.load_full_dataset,
+            datasets=[f"state_{x}" for x in config.MODEL.used_inputs] + \
+                     ["action"],
+            continuous=False,
+            ignore_stop=config.RL.BC.ignore_stop,
+            single_goal=get_goal(config.RL.BC, eval_episodes)
+        )
         for t in tqdm(range(int(config.NUM_UPDATES)), desc="Training"):
-            batch = sample_transitions(
-                config.TASK_CONFIG,
-                config.RL.BC.BATCH_SIZE,
-                groups=[f"17DRP5sb8fy/{ep.episode_id}" for ep in eval_episodes]
-            )
+            batch = next(batch_gen)
             batch.normalize_states(mean_std)
-            batch.to_tensor(device=device)
             log_dict = trainer.train(batch,
                                      used_inputs=config.MODEL.used_inputs)
             wandb.log(log_dict, step=trainer.total_it)
@@ -375,13 +248,14 @@ def train(config_path):
                     used_inputs=config.MODEL.used_inputs,
                     video=t == config.NUM_UPDATES - 1,
                     video_dir=config.VIDEO_DIR,
-                    video_prefix="bc",
-                    normalization_stats=mean_std,
+                    video_prefix="bc/bc",
+                    ignore_stop=config.RL.BC.ignore_stop,
+                    succes_distance=config.TASK_CONFIG.TASK.SUCCESS_DISTANCE,
                 )
                 evaluations.append(eval_scores)
                 print("---------------------------------------")
                 print(
-                    f"Evaluation over {config.RL.BC.EVAL_EPISODES} episodes: "
+                    f"Evaluation over {config.RL.BC.eval_episodes} episodes: "
                 )
                 for key in eval_scores:
                     print(f"{key}: {np.mean(eval_scores[key])}")
@@ -406,7 +280,9 @@ def main():
     parser.add_argument("--config", type=str,
                         default="habitat_corl/configs/bc_pointnav.yaml")
     args = parser.parse_args()
-    train(args.config)
+    config = get_config(args.config)
+    register_new_sensors(config.TASK_CONFIG)
+    train(config)
 
 
 if __name__ == "__main__":

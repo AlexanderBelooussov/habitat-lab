@@ -26,7 +26,8 @@ import habitat
 from habitat.utils.visualizations.utils import images_to_video, \
     observations_to_image
 from habitat_baselines.config.default import get_config
-from habitat_corl.common.utils import restructure_results, train_eval_split
+from habitat_corl.common.utils import restructure_results, train_eval_split, \
+    set_seed, wandb_init, eval_actor, get_goal
 from habitat_corl.common.wrappers import wrap_env
 from habitat_corl.replay_buffer import ReplayBuffer, get_input_dims
 from habitat_corl.shortest_path_dataset import register_new_sensors, \
@@ -41,36 +42,6 @@ def soft_update(target: nn.Module, source: nn.Module, tau: float):
                                           source.parameters()):
         target_param.data.copy_(
             (1 - tau) * target_param.data + tau * source_param.data)
-
-
-def wandb_init(config) -> None:
-    # check cuda device
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    wandb.login(key=config.WANDB_KEY)
-    wandb.init(
-        config=config,
-        project=config.PROJECT,
-        group=config.GROUP,
-        name=config.NAME,
-        id=str(uuid.uuid4()),
-        mode="disabled" if device == "cpu" else "online",
-    )
-    wandb.run.save()
-
-
-def set_seed(
-    seed: int, env: Optional[gym.Env] = None, deterministic_torch: bool = False
-):
-    if env is not None:
-        env.seed(seed)
-        env.action_space.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.manual_seed(seed)
-    if deterministic_torch:
-        torch.backends.cudnn.benchmark = False
-        torch.backends.cudnn.deterministic = True
 
 
 # SAC Actor & Critic implementation
@@ -362,72 +333,6 @@ class SACN:
         self.alpha = self.log_alpha.exp().detach()
 
 
-@torch.no_grad()
-def eval_actor(
-    env,
-    actor,
-    device,
-    episodes,
-    seed,
-    max_traj_len=1000,
-    used_inputs=["pointgoal_with_gps_compass"],
-    video=False,
-    video_dir="demos",
-    video_prefix="demo",
-    ignore_stop=False,
-    succes_distance=0.2,
-):
-    def make_videos(observations_list, output_prefix, ep_id):
-        prefix = output_prefix + "_{}".format(ep_id)
-        # make dir if it does not exist
-        os.makedirs(video_dir, exist_ok=True)
-        # check for directories in output_prefix
-        if "/" in output_prefix:
-            dirs = [video_dir] + output_prefix.split("/")[0:-1]
-            dirs = "/".join(dirs)
-            os.makedirs(dirs, exist_ok=True)
-        images_to_video(observations_list, output_dir=video_dir,
-                        video_name=prefix)
-
-    # run the agent for n_episodes
-    # env = habitat.Env(config=env._config)
-    env_ptr = env
-    while hasattr(env_ptr, "env"):
-        env_ptr = env_ptr.env
-    env_ptr.episodes = episodes
-    env_ptr.episode_iterator = iter(episodes)
-    env_ptr.seed(seed)  # needed?
-    results = []
-    for i in tqdm(range(len(episodes)), desc="eval", leave=False):
-        video_frames = []
-        observations, raw = env.reset()
-        for step in range(max_traj_len):
-            action = actor.act(observations, device)
-            # print(action)
-            observations, raw = env.step(action)
-            info = env.get_metrics()
-            if video:
-                frame = observations_to_image(raw, info)
-                video_frames.append(frame)
-            # stop if close to goal
-            position = env.sim.get_agent_state().position
-            goal = env.current_episode.goals[0].position
-            distance = np.linalg.norm(np.array(position) - np.array(goal))
-            # print(f"\t{distance}")
-            if env.episode_over:
-                # print(f"Episode {i} finished after {step} steps")
-                break
-            if ignore_stop and distance < succes_distance:
-                info["success"] = True
-                break
-
-        info = env.get_metrics()
-        results.append(info)
-        if video:
-            make_videos(video_frames, video_prefix, i)
-    return restructure_results(results)
-
-
 def return_reward_range(dataset, max_episode_steps):
     returns, lengths = [], []
     ep_ret, ep_len = 0.0, 0
@@ -496,11 +401,6 @@ def train(config):
             critic.parameters(), lr=config.RL.SAC_N.critic_learning_rate
         )
 
-        if config.RL.SAC_N.single_goal:
-            goal = eval_episodes[0].goals[0].position
-        else:
-            goal = None
-
         trainer = SACN(
             actor=actor,
             actor_optimizer=actor_optimizer,
@@ -534,7 +434,7 @@ def train(config):
                      [f"next_state_{x}" for x in config.MODEL.used_inputs] + \
                      ["action", "reward", "done"],
             continuous=True,
-            single_goal=goal
+            single_goal=get_goal(config.RL.SAC_N, eval_episodes)
         )
         for epoch in trange(config.RL.SAC_N.num_epochs, desc="Training"):
             # training
