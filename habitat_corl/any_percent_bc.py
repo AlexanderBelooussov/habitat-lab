@@ -2,6 +2,7 @@ import argparse
 import os
 import random
 import uuid
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -11,6 +12,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import vaex
 import wandb
 from tqdm import tqdm
 
@@ -46,18 +48,20 @@ def keep_best_trajectories(
     if frac == 1.0:
         return groups
     returns = []
-    with h5py.File(config.DATASET.SP_DATASET_PATH, "r") as f:
-        for idx, dataset in enumerate(groups):
-            rewards = f[dataset + "/rewards"][:]
-            dones = f[dataset + "/dones"][:]
-            cur_return = 0
-            reward_scale = 1.0
-            for i, (reward, done) in enumerate(zip(rewards, dones)):
-                cur_return += reward_scale * reward
-                reward_scale *= discount
-                if done or i == max_episode_steps:
-                    returns.append(cur_return)
-                    break
+
+    for idx, group in enumerate(groups):
+        df = vaex.open(config.DATASET.SP_DATASET_PATH, group=group)
+        rewards = deepcopy(df["reward"].values)
+        dones = deepcopy(df["done"].values)
+        cur_return = 0
+        reward_scale = 1.0
+        for i, (reward, done) in enumerate(zip(rewards, dones)):
+            cur_return += reward_scale * reward
+            reward_scale *= discount
+            if done or i == max_episode_steps:
+                returns.append(cur_return)
+                break
+        df.close()
 
     sort_ord = np.argsort(returns, axis=0)[::-1].reshape(-1)
     top_trajs = sort_ord[: int(frac * len(sort_ord))]
