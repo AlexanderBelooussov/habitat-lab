@@ -7,7 +7,10 @@ import gym
 import numpy as np
 import torch
 import wandb
+from tqdm import tqdm
 
+from habitat.utils.visualizations.utils import images_to_video, \
+    observations_to_image
 from habitat_corl.shortest_path_dataset import get_stored_episodes
 
 
@@ -82,3 +85,77 @@ def wandb_init(config) -> None:
         mode="disabled"
     )
     wandb.run.save()
+
+
+
+@torch.no_grad()
+def eval_actor(
+    env,
+    actor,
+    device,
+    episodes,
+    seed,
+    max_traj_len=1000,
+    used_inputs=["pointgoal_with_gps_compass"],
+    video=False,
+    video_dir="demos",
+    video_prefix="demo",
+    ignore_stop=False,
+    succes_distance=0.2,
+):
+    def make_videos(observations_list, output_prefix, ep_id):
+        prefix = output_prefix + "_{}".format(ep_id)
+        # make dir if it does not exist
+        os.makedirs(video_dir, exist_ok=True)
+        # check for directories in output_prefix
+        if "/" in output_prefix:
+            dirs = [video_dir] + output_prefix.split("/")[0:-1]
+            dirs = "/".join(dirs)
+            os.makedirs(dirs, exist_ok=True)
+        images_to_video(observations_list, output_dir=video_dir,
+                        video_name=prefix)
+
+    # run the agent for n_episodes
+    # env = habitat.Env(config=env._config)
+    env_ptr = env
+    while hasattr(env_ptr, "env"):
+        env_ptr = env_ptr.env
+    env_ptr.episodes = episodes
+    env_ptr.episode_iterator = iter(episodes)
+    env_ptr.seed(seed)  # needed?
+    results = []
+    for i in tqdm(range(len(episodes)), desc="eval", leave=False):
+        video_frames = []
+        observations, raw = env.reset()
+        for step in range(max_traj_len):
+            action = actor.act(observations, device)
+            # print(action)
+            observations, raw = env.step(action)
+            info = env.get_metrics()
+            if video:
+                frame = observations_to_image(raw, info)
+                video_frames.append(frame)
+            # stop if close to goal
+            position = env.sim.get_agent_state().position
+            goal = env.current_episode.goals[0].position
+            distance = np.linalg.norm(np.array(position) - np.array(goal))
+            # print(f"\t{distance}")
+            if env.episode_over:
+                # print(f"Episode {i} finished after {step} steps")
+                break
+            if ignore_stop and distance < succes_distance:
+                info["success"] = True
+                break
+
+        info = env.get_metrics()
+        results.append(info)
+        if video:
+            make_videos(video_frames, video_prefix, i)
+    return restructure_results(results)
+
+def get_goal(algorithn_config, eval_episodes):
+    if algorithn_config.single_goal:
+        goal = eval_episodes[0].goals[0].position
+    else:
+        goal = None
+    return goal

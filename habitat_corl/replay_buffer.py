@@ -65,6 +65,7 @@ class ReplayBuffer:
             for key in self.next_states:
                 self.next_states[key] = copy.deepcopy(self.next_states[key][:-1])
 
+        df.close()
 
         self.scenes = [scene] * len(self.dones)
         self.scenes = np.array(self.scenes)
