@@ -125,7 +125,6 @@ def eval_actor(
                         video_name=prefix)
 
     # run the agent for n_episodes
-    # env = habitat.Env(config=env._config)
     env_ptr = env
     while hasattr(env_ptr, "env"):
         env_ptr = env_ptr.env
@@ -142,15 +141,16 @@ def eval_actor(
             observations, raw = env.step(action)
             info = env.get_metrics()
             if video:
-                frame = observations_to_image(raw, info)
-                video_frames.append(frame)
+                if "depth" not in raw and "rgb" not in raw:
+                    video = False
+                else:
+                    frame = observations_to_image(raw, info)
+                    video_frames.append(frame)
             # stop if close to goal
             position = env.sim.get_agent_state().position
             goal = env.current_episode.goals[0].position
             distance = np.linalg.norm(np.array(position) - np.array(goal))
-            # print(f"\t{distance}")
             if env.episode_over:
-                # print(f"Episode {i} finished after {step} steps")
                 break
             if ignore_stop and distance < succes_distance:
                 info["success"] = True
