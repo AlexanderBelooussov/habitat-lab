@@ -43,7 +43,7 @@ RL:
 #    batch_size: 1
     update_steps: 100_000
     warmup_steps: 10_000
-    reward_scale: 0.001
+    reward_scale: 1.0
 #    num_workers: 1
     num_workers: 4
     # evaluation params

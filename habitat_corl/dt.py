@@ -539,7 +539,7 @@ def train(config):
                         env=eval_env,
                         target_return=target_return * dt_config.reward_scale,
                         device=device,
-                        video=True,
+                        video=step==dt_config.update_steps-1,
                         video_dir=config.VIDEO_DIR,
                         video_prefix=f"dt/{int(target_return)}/dt",
                         eval_iteration=i,
