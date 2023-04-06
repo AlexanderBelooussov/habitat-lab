@@ -188,13 +188,13 @@ def train(config):
             n_eval_episodes=config.RL.BC.eval_episodes,
             single_goal=config.RL.BC.single_goal,
         )
-        train_episodes = keep_best_trajectories(
-            config=config.TASK_CONFIG,
-            groups=train_episodes,
-            discount=config.RL.BC.DISCOUNT,
-            frac=config.RL.BC.FRAC,
-            max_episode_steps=config.RL.BC.MAX_TRAJ_LEN,
-        )
+        # train_episodes = keep_best_trajectories(
+        #     config=config.TASK_CONFIG,
+        #     groups=train_episodes,
+        #     discount=config.RL.BC.DISCOUNT,
+        #     frac=config.RL.BC.FRAC,
+        #     max_episode_steps=config.RL.BC.MAX_TRAJ_LEN,
+        # )
 
         if hasattr(config,
                    "CHECKPOINT_FOLDER") and config.CHECKPOINT_FOLDER is not None:
@@ -240,10 +240,13 @@ def train(config):
             groups=train_episodes,
             use_full_dataset=config.RL.BC.load_full_dataset,
             datasets=[f"state_{x}" for x in config.MODEL.used_inputs] + \
-                     ["action"],
+                     ["action", "reward", "done"],
             continuous=False,
             ignore_stop=config.RL.BC.ignore_stop,
-            single_goal=get_goal(config.RL.BC, eval_episodes)
+            single_goal=get_goal(config.RL.BC, eval_episodes),
+            max_episode_steps=config.RL.BC.MAX_TRAJ_LEN,
+            frac=config.RL.BC.FRAC,
+            discount=config.RL.BC.DISCOUNT,
         )
         for t in tqdm(range(int(config.NUM_UPDATES)), desc="Training"):
             batch = next(batch_gen)

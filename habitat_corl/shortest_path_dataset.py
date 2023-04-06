@@ -283,7 +283,8 @@ def generate_shortest_path_dataset(config, train_episodes=None,
 
 
 def load_full_dataset(config, groups=None, datasets=None, continuous=False,
-                      ignore_stop=False, single_goal=None):
+                      ignore_stop=False, single_goal=None,
+                      frac=1.0, discount=0.99, max_episode_steps=1000):
     if datasets is None:
         datasets = [
             "states/position",
@@ -324,10 +325,10 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
                     rpb.extend_rewards(copy.deepcopy(df[ds].values[:n_steps]))
                 else:
                     # np array of current positions
-                    positions = copy.deepcopy(df["next_state_position"].values[:-1])
+                    positions = copy.deepcopy(df["next_state_position"].values[:n_steps])
                     # np array of goal positions
                     if single_goal is None:
-                        goals = copy.deepcopy(df["state_goal_position"].values[:-1])
+                        goals = copy.deepcopy(df["state_goal_position"].values[:n_steps])
                     else:
                         goals = np.array([single_goal] * n_steps)
                     # np array of distances between current position and goal
@@ -345,6 +346,11 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
                     dones = copy.deepcopy(df[ds].values[:-2])
                     dones = np.append(dones, True)
                     rpb.extend_dones(dones)
+        scene = np.array([group.split("/")[0]] * n_steps)
+        rpb.extend_scenes(scene)
+        episode = np.array([group.split("/")[1]] * n_steps)
+        rpb.extend_episodes(episode)
+
 
         df.close()
     # print size of dataset in memory (MBs)
@@ -353,7 +359,35 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
           f"Number of episodes: {len(groups)}")
     if continuous:
         rpb.to_continuous_actions()
+
     rpb.to_numpy()
+
+    if frac < 1.0:
+        # keep the best trajectories (for BC-x%)
+        trajectories = list(set(rpb.episode_ids))
+        returns = []
+        for traj in trajectories:
+            idxs = np.where(rpb.episode_ids == traj)[0]
+            rewards = rpb.rewards[idxs]
+            dones = rpb.dones[idxs]
+            cur_return = 0
+            reward_scale = 1.0
+            for i, (reward, done) in enumerate(zip(rewards, dones)):
+                cur_return += reward_scale * reward
+                reward_scale *= discount
+                if done or i == max_episode_steps:
+                    returns.append(cur_return)
+                    break
+
+        sort_ord = np.argsort(returns, axis=0)[::-1].reshape(-1)
+        top_trajs = sort_ord[: int(frac * len(sort_ord))]
+
+        trajectories = [trajectories[i] for i in top_trajs]
+
+        # filter out the worst trajectories
+        idxs = np.where(np.isin(rpb.episode_ids, trajectories))[0]
+        rpb.filter(idxs)
+
     return rpb
 
 
@@ -439,7 +473,10 @@ def batch_generator(
     n_batches=5000,
     continuous=False,
     ignore_stop=False,
-    single_goal=None
+    single_goal=None,
+    frac=1.0,
+    discount=0.99,
+    max_episode_steps=1000
 ):
     if continuous:
         ignore_stop = True
@@ -464,7 +501,10 @@ def batch_generator(
             datasets=datasets,
             continuous=continuous,
             ignore_stop=ignore_stop,
-            single_goal=single_goal
+            single_goal=single_goal,
+            frac=frac,
+            discount=discount,
+            max_episode_steps=max_episode_steps
         )
         while True:
             yield dataset.sample(n_transitions)

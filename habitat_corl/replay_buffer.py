@@ -80,6 +80,8 @@ class ReplayBuffer:
         self.dones = np.array(self.dones)
         self.actions = np.array(self.actions)
         self.rewards = np.array(self.rewards)
+        self.scenes = np.array(self.scenes)
+        self.episode_ids = np.array(self.episode_ids)
 
 
     def append_observations(self, observations, key=None):
@@ -126,6 +128,12 @@ class ReplayBuffer:
 
     def extend_dones(self, dones: np.ndarray):
         self.dones.extend(dones)
+
+    def extend_episodes(self, episodes: np.ndarray):
+        self.episode_ids.extend(episodes)
+
+    def extend_scenes(self, scenes: np.ndarray):
+        self.scenes.extend(scenes)
 
     def extend_next_states(self, next_states: Union[Dict[str, np.ndarray], np.ndarray], key=None):
         if key is None:
@@ -311,6 +319,20 @@ class ReplayBuffer:
                         break
 
         self.actions = actions
+
+
+    def filter(self, indices):
+        """Filter by keeping only the indices specified."""
+        self.states = {key: value[indices] for key, value in self.states.items()}
+        self.next_states = {key: value[indices] for key, value in self.next_states.items()}
+        self.actions = self.actions[indices]
+        self.rewards = self.rewards[indices]
+        if len(self.dones) > 0:
+            self.dones = self.dones[indices]
+        if len(self.episode_ids) > 0:
+            self.episode_ids = self.episode_ids[indices]
+        if len(self.scenes) > 0:
+            self.scenes = self.scenes[indices]
 
 def generate_dataset(
     cfg, num_episodes=None
