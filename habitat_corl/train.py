@@ -14,7 +14,14 @@ scene_dict = {
     "long_hallway": "Vt2qJdWjCF2",
     "xl": "uNb9QFRL6hY",
 }
-
+dataset_dict = {
+    "medium": "data/sp_datasets/datasets_medium_no_depth.hdf5",
+    "debug": "data/sp_datasets/debug_datasets_medium_no_depth.hdf5",
+    "small": "data/sp_datasets/datasets_small_no_depth.hdf5",
+    "large": "data/sp_datasets/datasets_large_no_depth.hdf5",
+    "long_hallway": "data/sp_datasets/datasets_long_hallway_no_depth.hdf5",
+    "xl": "data/sp_datasets/datasets_xl_no_depth.hdf5",
+}
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -90,23 +97,24 @@ def main():
     if ignore_stop:
         config.NAME += "-ignore_stop"
     if task == "singlegoal":
-        config.GROUP = "SingleGoal"
+        config.GROUP = f"SingleGoal_{scene}"
         if algorithm == "dt":
             algo_config.target_returns = "(1.0, 10.0)"
         algo_config.single_goal = True
         config.MODEL.used_inputs = ["position", "heading_vec"]
     elif task == "pointnav_depth":
-        config.GROUP = "PointNavDepth"
+        config.GROUP = f"PointNavDepth_{scene}"
         algo_config.single_goal = False
         config.MODEL.used_inputs = ["depth", "pointgoal_with_gps_compass",
                                     "heading_vec"]
     elif task == "pointnav":
-        config.GROUP = "PointNav"
+        config.GROUP = f"PointNav_{scene}"
         algo_config.single_goal = False
         config.MODEL.used_inputs = ["position", "heading_vec", "goal_position"]
 
+    config.TASK_CONFIG.DATASET.SP_DATASET_PATH = dataset_dict[scene]
+
     if scene == "debug":
-        config.TASK_CONFIG.DATASET.SP_DATASET_PATH = "data/sp_datasets/debug_datasets_medium_no_depth.hdf5"
         algo_config.eval_episodes = 1
 
     config.freeze()
