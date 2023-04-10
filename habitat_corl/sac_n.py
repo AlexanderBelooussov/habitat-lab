@@ -374,6 +374,7 @@ def train(config):
         used_inputs=config.MODEL.used_inputs,
         continuous=True,
         ignore_stop=config.RL.SAC_N.ignore_stop,
+        turn_angle=config.TASK_CONFIG.SIMULATOR.TURN_ANGLE,
     ) as env:
         state_dim = get_input_dims(config)
         action_dim = 2

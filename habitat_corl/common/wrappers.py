@@ -32,11 +32,12 @@ class HabitatAcionWrapper(gym.ActionWrapper):
             action = action + 1
         return action
 class ContinuousActionWrapper(ActionWrapper):
-    def __init__(self, env):
+    def __init__(self, env, turn_angle=30):
         super().__init__(env)
         self.action_space = gym.spaces.Box(
             low=-1.0, high=1.0, shape=(2,), dtype=np.float32
         )
+        self.turn_angle = turn_angle
     def _quat_to_xy_heading(self, quat):
         from habitat.utils.geometry_utils import quaternion_rotate_vector
         from habitat.tasks.utils import cartesian_to_polar
@@ -68,7 +69,7 @@ class ContinuousActionWrapper(ActionWrapper):
         current_heading = self._get_heading() + np.pi
 
         # tolerance = 7.5 degrees, in radians
-        tolerance = 7.5 * np.pi / 180
+        tolerance = (self.turn_angle/2.0) * np.pi / 180
 
         if target_angle > current_heading:
             # if target angel is greater than current heading,
@@ -116,6 +117,7 @@ def wrap_env(
     used_inputs=None,
     ignore_stop=False,
     continuous=False,
+    turn_angle=30,
 ) -> gym.Env:
     if used_inputs is None:
         used_inputs = ["postion", "heading", "pointgoal"]
@@ -137,7 +139,7 @@ def wrap_env(
     env = HabitatWrapper(env)
     env.observation = transform_state
     if continuous:
-        env = ContinuousActionWrapper(env)
+        env = ContinuousActionWrapper(env, turn_angle=turn_angle)
     else:
         env = HabitatAcionWrapper(env, ignore_stop=ignore_stop)
     return env

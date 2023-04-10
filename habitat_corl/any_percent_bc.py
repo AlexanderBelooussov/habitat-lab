@@ -105,8 +105,8 @@ class Actor(nn.Module):
             self.net.to(device)
 
         action = self.forward(state)
-        action = torch.argmax(action).item()
-
+        # action = torch.argmax(action).item()
+        action = torch.distributions.Categorical(logits=action).sample().item()
         # move net back to original device
         if device != self.device:
             self.net.to(self.device)
@@ -264,7 +264,8 @@ def train(config):
                     episodes=eval_episodes,
                     seed=config.SEED,
                     used_inputs=config.MODEL.used_inputs,
-                    video=t == config.NUM_UPDATES - 1,
+                    # video=t == config.NUM_UPDATES - 1,
+                    video=True,
                     video_dir=config.VIDEO_DIR,
                     video_prefix="bc/bc",
                     ignore_stop=config.RL.BC.ignore_stop,

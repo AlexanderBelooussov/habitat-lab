@@ -59,6 +59,11 @@ def main():
         choices=["medium", "large", "small", "xl", "debug"],
         help="Scene to use",
     )
+    parser.add_argument(
+        "--web_dataset",
+        action="store_true",
+        help="Use web dataset",
+    )
 
     args = parser.parse_args()
 
@@ -113,9 +118,11 @@ def main():
         config.MODEL.used_inputs = ["position", "heading_vec", "goal_position"]
 
     config.TASK_CONFIG.DATASET.SP_DATASET_PATH = dataset_dict[scene]
+    if args.web_dataset:
+        config.TASK_CONFIG.DATASET.WEB_DATASET_PATH = f"data/web_datasets/web_dataset_{scene}.hdf5"
 
     if scene == "debug":
-        algo_config.eval_episodes = 1
+        algo_config.eval_episodes = 10
 
     config.freeze()
     register_new_sensors(config.TASK_CONFIG)

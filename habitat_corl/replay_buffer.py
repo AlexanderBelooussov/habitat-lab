@@ -11,8 +11,6 @@ import torch
 import numpy as np
 import vaex
 
-from habitat.utils.visualizations.utils import observations_to_image, \
-    images_to_video, append_text_to_image
 from habitat_baselines.il.common.encoders.resnet_encoders import \
     ResnetRGBEncoder, VlnResnetDepthEncoder
 
@@ -35,42 +33,103 @@ class ReplayBuffer:
     def is_numpy(self):
         return isinstance(self.dones, np.ndarray)
 
-    def from_hdf5_group(self, file_path, group, ignore_stop=False):
+    def from_hdf5_group(self, file_path, group, ignore_stop=False,
+                        continuous=False, single_goal=None, datasets=None):
         df = vaex.open(file_path, group=group)
-        states = [col for col in df.get_column_names() if col.startswith("state_")]
-        next_states = [col for col in df.get_column_names() if col.startswith("next_state_")]
-        for state in states:
-            name = state.split("state_")[1]
-            self.states[name] = copy.deepcopy(df[state].values)
-        for next_state in next_states:
-            name = next_state.split("next_state_")[1]
-            self.next_states[name] = copy.deepcopy(df[next_state].values)
 
-        scene = group.split("/")[0]
-        ep = group.split("/")[1]
-        self.dones = copy.deepcopy(df["done"].values)
-        self.actions = copy.deepcopy(df["action"].values)
-        self.rewards = copy.deepcopy(df["reward"].values)
+        if datasets is None:
+            datasets = [col for col in df.get_column_names()]
 
+        n_steps = len(df['action'].values)
         if ignore_stop:
-            self.dones = copy.deepcopy(self.dones[:-1])
-            self.dones[-1] = True
-            last_reward = self.rewards[-1]
-            self.rewards = copy.deepcopy(self.rewards[:-1])
-            self.rewards[-1] += last_reward
-            self.actions = copy.deepcopy(self.actions[:-1])
-            self.actions -= 1
-            for key in self.states:
-                self.states[key] = copy.deepcopy(self.states[key][:-1])
-            for key in self.next_states:
-                self.next_states[key] = copy.deepcopy(self.next_states[key][:-1])
+            n_steps -= 1
+        for dataset in datasets:
+            if "next_state" in dataset:
+                self.extend_next_states(
+                    copy.deepcopy(df[dataset].values[:n_steps]),
+                    dataset.split("state_")[1]
+                )
+            elif "state" in dataset:
+                self.extend_states(
+                    copy.deepcopy(df[dataset].values[:n_steps]),
+                    dataset.split("state_")[1]
+                )
+            elif "action" in dataset:
+                ds = "action"
+                actions = copy.deepcopy(df[ds].values[:n_steps])
+                if not continuous and ignore_stop:
+                    actions = np.where(actions == 0, 0, actions - 1)
+                self.extend_actions(actions)
+            elif "reward" in dataset:
+                ds = "reward"
+                if not ignore_stop and single_goal is None:
+                    self.extend_rewards(copy.deepcopy(df[ds].values[:n_steps]))
+                else:
+                    # np array of current positions
+                    positions = copy.deepcopy(
+                        df["next_state_position"].values[:n_steps])
+                    # np array of goal positions
+                    if single_goal is None:
+                        goals = copy.deepcopy(
+                            df["state_goal_position"].values[:n_steps])
+                    else:
+                        goals = np.array([single_goal] * n_steps)
+                    # np array of distances between current position and goal
+                    distances = np.linalg.norm(positions - goals, axis=1)
+                    # np array of rewards
+                    rewards = np.where(
+                        distances < config.TASK.SUCCESS_DISTANCE, 1, 0)
+                    self.extend_rewards(rewards)
 
+            elif "done" in dataset:
+                ds = "done"
+                if not ignore_stop:
+                    self.extend_dones(copy.deepcopy(df[ds].values[:n_steps]))
+                else:
+                    dones = copy.deepcopy(df[ds].values[:-2])
+                    dones = np.append(dones, True)
+                    self.extend_dones(dones)
+        scene = np.array([group.split("/")[0]] * n_steps)
+        self.extend_scenes(scene)
+        episode = np.array([group.split("/")[1]] * n_steps)
+        self.extend_episodes(episode)
         df.close()
 
-        self.scenes = [scene] * len(self.dones)
-        self.scenes = np.array(self.scenes)
-        self.episode_ids = [ep] * len(self.dones)
-        self.episode_ids = np.array(self.episode_ids)
+        # df = vaex.open(file_path, group=group)
+        # states = [col for col in df.get_column_names() if col.startswith("state_")]
+        # next_states = [col for col in df.get_column_names() if col.startswith("next_state_")]
+        # for state in states:
+        #     name = state.split("state_")[1]
+        #     self.states[name] = copy.deepcopy(df[state].values)
+        # for next_state in next_states:
+        #     name = next_state.split("next_state_")[1]
+        #     self.next_states[name] = copy.deepcopy(df[next_state].values)
+        #
+        # scene = group.split("/")[0]
+        # ep = group.split("/")[1]
+        # self.dones = copy.deepcopy(df["done"].values)
+        # self.actions = copy.deepcopy(df["action"].values)
+        # self.rewards = copy.deepcopy(df["reward"].values)
+        #
+        # if ignore_stop:
+        #     self.dones = copy.deepcopy(self.dones[:-1])
+        #     self.dones[-1] = True
+        #     last_reward = self.rewards[-1]
+        #     self.rewards = copy.deepcopy(self.rewards[:-1])
+        #     self.rewards[-1] += last_reward
+        #     self.actions = copy.deepcopy(self.actions[:-1])
+        #     self.actions -= 1
+        #     for key in self.states:
+        #         self.states[key] = copy.deepcopy(self.states[key][:-1])
+        #     for key in self.next_states:
+        #         self.next_states[key] = copy.deepcopy(self.next_states[key][:-1])
+        #
+        # df.close()
+        #
+        # self.scenes = [scene] * len(self.dones)
+        # self.scenes = np.array(self.scenes)
+        # self.episode_ids = [ep] * len(self.dones)
+        # self.episode_ids = np.array(self.episode_ids)
 
     def to_numpy(self):
         for key in self.states:
@@ -84,9 +143,13 @@ class ReplayBuffer:
         self.episode_ids = np.array(self.episode_ids)
 
 
-    def append_observations(self, observations, key=None):
+    def append_observations(self, observations, key=None, exclude=None):
         if key is None:
+            if exclude is None:
+                exclude = []
             for key in observations:
+                if key in exclude:
+                    continue
                 if "state_" in key:
                     key = key.split("state_")[1]
                 if key not in self.states:
@@ -99,9 +162,13 @@ class ReplayBuffer:
                 self.states[key] = np.array([])
             self.states[key] = np.array.append(self.states[key], observations)
 
-    def append_next_observations(self, observations, key=None):
+    def append_next_observations(self, observations, key=None, exclude=None):
         if key is None:
+            if exclude is None:
+                exclude = []
             for key in observations:
+                if key in exclude:
+                    continue
                 if "state_" in key:
                     key = key.split("state_")[1]
                 if key not in self.next_states:
@@ -297,10 +364,26 @@ class ReplayBuffer:
         return size
 
 
-    def to_continuous_actions(self, forward=0.25, turn=10):
+    def to_continuous_actions(self, forward=0.25, turn=30):
+        def add_noise_to_vec(vec):
+            rad_angle = np.arctan2(vec[1], vec[0])
+            return normalize_angle([rad_angle])
+
         def normalize_angle(angle):
             a = angle[0]
+            # add some noise to the angle
+            # keep in range [-pi, pi]
+            # and make sure it does not turn more than turn/2
+            turn_rad = np.deg2rad(turn)
+            noise = np.random.normal(0, turn_rad / 4)
+            noise = np.clip(noise, -turn_rad / 2, turn_rad / 2)
+            a += noise
+            if a > np.pi:
+                a -= 2 * np.pi
+            elif a < -np.pi:
+                a += 2 * np.pi
             return [np.cos(a), np.sin(a)]
+
         actions = np.zeros((len(self.actions), 2))
         for i, action in tqdm(enumerate(self.actions)):
             if action == 1 or action == 0:
@@ -313,7 +396,8 @@ class ReplayBuffer:
                 for j in range(i + 1, len(self.actions)):
                     if self.actions[j] != action or j == len(self.actions) - 1:
                         if "heading_vec" in self.states:
-                            actions[i] = self.states['heading_vec'][j]
+                            heading_vec = self.states['heading_vec'][j]
+                            actions[i] = add_noise_to_vec(heading_vec)
                         else:
                             actions[i] = normalize_angle(self.states['heading'][j])
                         break

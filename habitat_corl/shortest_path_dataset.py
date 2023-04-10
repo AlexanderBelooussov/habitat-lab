@@ -2,12 +2,12 @@ import argparse
 import copy
 import gc
 import sys
-from typing import Any
+from typing import Any, Union
 
 import vaex
 
 import habitat
-from habitat import registry
+from habitat import registry, Config
 from habitat.tasks.nav.nav import EpisodicGPSSensor, HeadingSensor
 from habitat.tasks.utils import cartesian_to_polar
 from habitat.utils.geometry_utils import quaternion_from_coeff, \
@@ -90,41 +90,56 @@ class GoalPositionSensor(EpisodicGPSSensor):
 @registry.register_sensor(name="HeadingVecSensor")
 class HeadingVecSensor(HeadingSensor):
     cls_uuid: str = "heading_vec"
+
     def get_observation(
         self, observations, episode, *args: Any, **kwargs: Any
     ):
-        heading = super().get_observation(observations, episode, *args, **kwargs)[0]
+        heading = \
+            super().get_observation(observations, episode, *args, **kwargs)[0]
         vec = [np.cos(heading), np.sin(heading)]
         return vec
 
 
+def register_new_sensors(config, sensors=None):
+    if sensors is None:
+        sensors = ["position", "goal_position", "heading_vec"]
 
-def register_new_sensors(config):
     config.defrost()
-    config.TASK.AGENT_POSITION_SENSOR = habitat.config.Config()
-    config.TASK.AGENT_POSITION_SENSOR.TYPE = "PositionSensor"
-    config.TASK.SENSORS.append("AGENT_POSITION_SENSOR")
-
-    config.TASK.AGENT_GOAL_POSITION_SENSOR = habitat.config.Config()
-    config.TASK.AGENT_GOAL_POSITION_SENSOR.TYPE = "GoalPositionSensor"
-    config.TASK.SENSORS.append("AGENT_GOAL_POSITION_SENSOR")
-
-    config.TASK.AGENT_HEADING_VEC_SENSOR = habitat.config.Config()
-    config.TASK.AGENT_HEADING_VEC_SENSOR.TYPE = "HeadingVecSensor"
-    config.TASK.SENSORS.append("AGENT_HEADING_VEC_SENSOR")
+    if "position" in sensors:
+        config.TASK.AGENT_POSITION_SENSOR = habitat.config.Config()
+        config.TASK.AGENT_POSITION_SENSOR.TYPE = "PositionSensor"
+        config.TASK.SENSORS.append("AGENT_POSITION_SENSOR")
+    if "goal_position" in sensors:
+        config.TASK.AGENT_GOAL_POSITION_SENSOR = habitat.config.Config()
+        config.TASK.AGENT_GOAL_POSITION_SENSOR.TYPE = "GoalPositionSensor"
+        config.TASK.SENSORS.append("AGENT_GOAL_POSITION_SENSOR")
+    if "heading_vec" in sensors:
+        config.TASK.AGENT_HEADING_VEC_SENSOR = habitat.config.Config()
+        config.TASK.AGENT_HEADING_VEC_SENSOR.TYPE = "HeadingVecSensor"
+        config.TASK.SENSORS.append("AGENT_HEADING_VEC_SENSOR")
 
     config.freeze()
     return config
 
 
 def dataset_to_dhf5(dataset: ReplayBuffer, config):
-    dataset.episode_ids = np.array(dataset.episode_ids, dtype=np.uint32)
+    try:
+        dataset.episode_ids = np.array(dataset.episode_ids, dtype=np.uint32)
+    except ValueError:
+        dataset.episode_ids = np.array(dataset.episode_ids)
     dataset.scenes = np.array(dataset.scenes)
     dataset.actions = np.array(dataset.actions, dtype=np.uint8)
     dataset.rewards = np.array(dataset.rewards, dtype=np.bool)
     dataset.dones = np.array(dataset.dones, dtype=np.bool)
 
-    file_path = config.DATASET.SP_DATASET_PATH
+    if hasattr(config.DATASET, 'SP_DATASET_PATH'):
+        file_path = config.DATASET.SP_DATASET_PATH
+    elif hasattr(config.DATASET, 'WEB_DATASET_PATH'):
+        file_path = config.DATASET.WEB_DATASET_PATH
+    else:
+        raise ValueError("No dataset path specified in config")
+
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
     # add "state" prefix to state keys
     # reduce depth size by converting float32 to uint8
@@ -133,7 +148,7 @@ def dataset_to_dhf5(dataset: ReplayBuffer, config):
                            dataset.next_states.items()}
     if 'state_depth' in dataset.states:
         dataset.states['state_depth'] = (
-                np.array(dataset.states['state_depth']) * 255).astype(np.uint8)
+            np.array(dataset.states['state_depth']) * 255).astype(np.uint8)
     if 'next_state_depth' in dataset.next_states:
         dataset.next_states['next_state_depth'] = (np.array(
             dataset.next_states['next_state_depth']) * 255).astype(np.uint8)
@@ -157,16 +172,22 @@ def dataset_to_dhf5(dataset: ReplayBuffer, config):
         episode_ids = set(dataset.episode_ids[idxs])
         for episode_id in episode_ids:
             idxs = np.where((dataset.episode_ids == episode_id) & (
-                    dataset.scenes == scene))[0]
+                dataset.scenes == scene))[0]
             df_ep = df[min(idxs):max(idxs) + 1]
             df_ep.export_hdf5(file_path, progress=False, mode="a",
                               group=f"{scene}/{episode_id}")
 
 
 def get_stored_scenes(config):
-    file_path = config.DATASET.SP_DATASET_PATH
+    if isinstance(config, str):
+        path = config
+    elif hasattr(config.DATASET, "SP_DATASET_PATH"):
+        path = config.DATASET.SP_DATASET_PATH
+    elif hasattr(config.DATASET, "WEB_DATASET_PATH"):
+        path = config.DATASET.WEB_DATASET_PATH
+
     try:
-        with h5py.File(file_path, "r") as hf:
+        with h5py.File(path, "r") as hf:
             scenes = list(hf.keys())
         return scenes
     except:
@@ -174,8 +195,14 @@ def get_stored_scenes(config):
 
 
 def get_stored_episodes(config, scene=None):
-    file_path = config.DATASET.SP_DATASET_PATH
-    with h5py.File(file_path, "r") as hf:
+    if isinstance(config, str):
+        path = config
+    elif hasattr(config.DATASET, "SP_DATASET_PATH"):
+        path = config.DATASET.SP_DATASET_PATH
+    elif hasattr(config.DATASET, "WEB_DATASET_PATH"):
+        path = config.DATASET.WEB_DATASET_PATH
+
+    with h5py.File(path, "r") as hf:
         if scene is None:
             episodes = {}
             for scene in hf:
@@ -186,8 +213,14 @@ def get_stored_episodes(config, scene=None):
 
 
 def get_stored_groups(config):
-    file_path = config.DATASET.SP_DATASET_PATH
-    with h5py.File(file_path, "r") as hf:
+    if isinstance(config, str):
+        path = config
+    elif hasattr(config.DATASET, "SP_DATASET_PATH"):
+        path = config.DATASET.SP_DATASET_PATH
+    elif hasattr(config.DATASET, "WEB_DATASET_PATH"):
+        path = config.DATASET.WEB_DATASET_PATH
+
+    with h5py.File(path, "r") as hf:
         groups = []
         for scene in hf:
             for episode in hf[scene]:
@@ -220,6 +253,7 @@ def generate_shortest_path_dataset(config, train_episodes=None,
     with habitat.Env(config) as env:
         if train_episodes is not None:
             env.episodes = train_episodes
+            env.episode_iterator = iter(env.episodes)
 
         shortest_path_follower = ShortestPathFollower(env.sim,
                                                       config.TASK.SUCCESS_DISTANCE)
@@ -269,10 +303,10 @@ def generate_shortest_path_dataset(config, train_episodes=None,
                 dataset.append_next_observations(obs)
                 dataset.append_action(action)
                 dataset.append_reward(reward)
-                dataset.append_done(action_name == "STOP")
+                dataset.append_done(action_name == "STOP" or env.episode_over)
 
                 # check if action is stop
-                if action_name == "STOP":
+                if action_name == "STOP" or env.episode_over:
                     break
             if (episode + 1) % 100 == 0:
                 dataset_to_dhf5(dataset, config)
@@ -293,66 +327,26 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
             "action"
         ]
 
+    paths = []
+    if hasattr(config.DATASET, "SP_DATASET_PATH"):
+        paths.append(config.DATASET.SP_DATASET_PATH)
+    if hasattr(config.DATASET, "WEB_DATASET_PATH"):
+        paths.append(config.DATASET.WEB_DATASET_PATH)
+
     datasets = [dataset.replace(f"s/", "_") for dataset in datasets]
     rpb = ReplayBuffer()
-    groups = get_stored_groups(config) if groups is None else groups
 
-    for group in tqdm(groups, desc="Loading dataset"):
-        df = vaex.open(f"{config.DATASET.SP_DATASET_PATH}", group=group)
-        n_steps = len(df['action'].values)
-        if ignore_stop:
-            n_steps -= 1
-        for dataset in datasets:
-            if "next_state" in dataset:
-                rpb.extend_next_states(
-                    copy.deepcopy(df[dataset].values[:n_steps]),
-                    dataset.split("state_")[1]
-                )
-            elif "state" in dataset:
-                rpb.extend_states(
-                    copy.deepcopy(df[dataset].values[:n_steps]),
-                    dataset.split("state_")[1]
-                )
-            elif "action" in dataset:
-                ds = "action"
-                actions = copy.deepcopy(df[ds].values[:n_steps])
-                if not continuous and ignore_stop:
-                    actions = np.where(actions == 0, 0, actions - 1)
-                rpb.extend_actions(actions)
-            elif "reward" in dataset:
-                ds = "reward"
-                if not ignore_stop and single_goal is None:
-                    rpb.extend_rewards(copy.deepcopy(df[ds].values[:n_steps]))
-                else:
-                    # np array of current positions
-                    positions = copy.deepcopy(df["next_state_position"].values[:n_steps])
-                    # np array of goal positions
-                    if single_goal is None:
-                        goals = copy.deepcopy(df["state_goal_position"].values[:n_steps])
-                    else:
-                        goals = np.array([single_goal] * n_steps)
-                    # np array of distances between current position and goal
-                    distances = np.linalg.norm(positions - goals, axis=1)
-                    # np array of rewards
-                    rewards = np.where(
-                        distances < config.TASK.SUCCESS_DISTANCE, 1, 0)
-                    rpb.extend_rewards(rewards)
-
-            elif "done" in dataset:
-                ds = "done"
-                if not ignore_stop:
-                    rpb.extend_dones(copy.deepcopy(df[ds].values[:n_steps]))
-                else:
-                    dones = copy.deepcopy(df[ds].values[:-2])
-                    dones = np.append(dones, True)
-                    rpb.extend_dones(dones)
-        scene = np.array([group.split("/")[0]] * n_steps)
-        rpb.extend_scenes(scene)
-        episode = np.array([group.split("/")[1]] * n_steps)
-        rpb.extend_episodes(episode)
-
-
-        df.close()
+    for file_path in paths:
+        groups = get_stored_groups(file_path)
+        for group in tqdm(groups, desc="Loading dataset"):
+            rpb.from_hdf5_group(
+                file_path=file_path,
+                group=group,
+                datasets=datasets,
+                ignore_stop=ignore_stop,
+                single_goal=single_goal,
+                continuous=continuous,
+            )
     # print size of dataset in memory (MBs)
     print(f"Dataset size: {sys.getsizeof(rpb) / 1024 / 1024:.3f} MBs\n"
           f"Number of transitions: {rpb.num_steps}\n"
@@ -619,7 +613,7 @@ def main():
     overwrite = args.overwrite
 
     if scene == "all":
-        scenes = ["medium", "small", "large", "long_hallway", "xl"]
+        scenes = ["medium", "small", "large", "xl", "long_hallway"]
     elif scene in scene_dict:
         scenes = [scene]
     else:
@@ -681,8 +675,6 @@ def augment_dataset():
 
             df.export_hdf5(path, group=group, mode="a")
             df.close()
-
-
 
 
 if __name__ == "__main__":

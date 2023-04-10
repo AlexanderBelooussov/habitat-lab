@@ -62,7 +62,8 @@ def discounted_cumsum(x: np.ndarray, gamma: float) -> np.ndarray:
 
 
 def load_trajectories(
-    config, gamma: float = 1.0, groups=None, used_inputs=None, action_dim=4
+    config, gamma: float = 1.0, groups=None, used_inputs=None, action_dim=4,
+    single_goal=None
 ) -> Tuple[List[DefaultDict[str, np.ndarray]], Dict[str, Any]]:
     if used_inputs is None:
         used_inputs = ["postion", "heading", "pointgoal"]
@@ -72,7 +73,8 @@ def load_trajectories(
         dataset[i].from_hdf5_group(
             config.TASK_CONFIG.DATASET.SP_DATASET_PATH,
             group,
-            ignore_stop=config.RL.DT.ignore_stop
+            ignore_stop=config.RL.DT.ignore_stop,
+            single_goal=single_goal
         )
     traj, traj_len = [], []
 
@@ -113,12 +115,14 @@ def load_trajectories(
 
 class SequenceDataset(IterableDataset):
     def __init__(self, config, seq_len: int = 10,
-                 reward_scale: float = 1.0, action_dim=4, groups=None):
+                 reward_scale: float = 1.0, action_dim=4, groups=None,
+                 single_goal=None):
         self.dataset, info = load_trajectories(
             config, gamma=1.0,
             used_inputs=config.MODEL.used_inputs,
             action_dim=action_dim,
-            groups=groups
+            groups=groups,
+            single_goal=single_goal
         )
         self.reward_scale = reward_scale
         self.seq_len = seq_len
@@ -418,6 +422,7 @@ def train(config):
         env=env,
         config=config,
         n_eval_episodes=dt_config.eval_episodes,
+        single_goal=dt_config.single_goal,
     )
     env.episodes = eval_episodes
     def ep_iter(eval_episodes):
@@ -426,12 +431,14 @@ def train(config):
                 yield ep
     env.episode_iterator = ep_iter(eval_episodes)
 
+    goal = eval_episodes[0].goals[0].position if dt_config.single_goal else None
     # data & dataloader setup
     dataset = SequenceDataset(
         config, seq_len=dt_config.seq_len,
         reward_scale=dt_config.reward_scale,
         action_dim=4-int(dt_config.ignore_stop),
-        groups=train_episodes
+        groups=train_episodes,
+        single_goal=goal
     )
     trainloader = DataLoader(
         dataset,
@@ -528,7 +535,10 @@ def train(config):
         # validation in the env for the actual online performance
         if step % dt_config.eval_every == 0 or step == dt_config.update_steps - 1:
             model.eval()
-            target_returns = strin_to_tuple(dt_config.target_returns, float)
+            if isinstance(dt_config.target_returns, str):
+                target_returns = strin_to_tuple(dt_config.target_returns, float)
+            else:
+                target_returns = dt_config.target_returns
             for target_return in target_returns:
                 eval_env.seed(dt_config.eval_seed)
                 eval_scores = []
@@ -551,8 +561,8 @@ def train(config):
                 for key in eval_scores:
                     wandb.log(
                         {
-                            f"eval/{key}_mean": np.mean(eval_scores[key]),
-                            f"eval/{key}_std": np.std(eval_scores[key])
+                            f"{int(target_return)}/eval/{key}_mean": np.mean(eval_scores[key]),
+                            f"{int(target_return)}/eval/{key}_std": np.std(eval_scores[key])
                         },
                         step=step,
                     )
