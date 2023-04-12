@@ -350,7 +350,7 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
     # print size of dataset in memory (MBs)
     print(f"Dataset size: {sys.getsizeof(rpb) / 1024 / 1024:.3f} MBs\n"
           f"Number of transitions: {rpb.num_steps}\n"
-          f"Number of episodes: {len(groups)}")
+          f"Number of episodes: {rpb.num_episodes}\n")
     if continuous:
         rpb.to_continuous_actions()
 

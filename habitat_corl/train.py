@@ -3,6 +3,7 @@ import argparse
 import habitat_corl.sac_n
 import habitat_corl.dt
 import habitat_corl.any_percent_bc
+import habitat_corl.td3_bc
 from habitat_baselines.config.default import get_config
 from habitat_corl.shortest_path_dataset import register_new_sensors
 
@@ -28,7 +29,8 @@ def main():
         "--algorithm",
         type=str,
         default="sacn",
-        choices=["sacn", "dt", "bc"],
+        choices=["sacn", "dt", "bc", "td3_bc", "sac_n", "td3bc", "bc_10",
+                 "bc10"],
         help="Algorithm to use",
     )
     parser.add_argument(
@@ -67,7 +69,7 @@ def main():
 
     args = parser.parse_args()
 
-    algorithm = args.algorithm
+    algorithm = args.algorithm.replace("_", "")
     task = args.task
     ignore_stop = args.ignore_stop
     n_eval_episodes = args.n_eval_episodes
@@ -86,11 +88,19 @@ def main():
         config.defrost()
         algo_config = config.RL.DT
 
-    elif algorithm == "bc":
+    elif algorithm == "bc" or algorithm == "bc10":
         config = "habitat_corl/configs/bc_pointnav.yaml"
         config = get_config(config, [])
         config.defrost()
         algo_config = config.RL.BC
+        if algorithm == "bc10":
+            algo_config.FRAC = 0.1
+            config.NAME += "-10"
+    elif algorithm == "td3bc":
+        config = "habitat_corl/configs/td3_bc_pointnav.yaml"
+        config = get_config(config, [])
+        config.defrost()
+        algo_config = config.RL.TD3_BC
     else:
         raise ValueError("Invalid algorithm/task combination")
 
@@ -131,8 +141,10 @@ def main():
         habitat_corl.sac_n.train(config)
     elif algorithm == "dt":
         habitat_corl.dt.train(config)
-    elif algorithm == "bc":
+    elif algorithm == "bc" or algorithm == "bc10":
         habitat_corl.any_percent_bc.train(config)
+    elif algorithm == "td3bc":
+        habitat_corl.td3_bc.train(config)
     else:
         raise ValueError("Invalid algorithm")
 
