@@ -1,11 +1,16 @@
 import argparse
 
+import torch
+
 import habitat_corl.sac_n
 import habitat_corl.dt
 import habitat_corl.any_percent_bc
 import habitat_corl.td3_bc
 from habitat_baselines.config.default import get_config
 from habitat_corl.shortest_path_dataset import register_new_sensors
+
+from tqdm import tqdm
+from functools import partialmethod
 
 scene_dict = {
     "medium": "17DRP5sb8fy",
@@ -24,6 +29,11 @@ dataset_dict = {
     "xl": "data/sp_datasets/datasets_xl_no_depth.hdf5",
 }
 def main():
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    if device == "cuda:0":
+        tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
+
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--algorithm",
