@@ -80,6 +80,9 @@ def set_seed(
 def wandb_init(config) -> None:
     # check cuda device
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    online = False
+    if device == "cuda" or "debug" in config.GROUP:
+        online = True
     wandb.login(key=config.WANDB_KEY)
     wandb.init(
         config=config,
@@ -87,7 +90,7 @@ def wandb_init(config) -> None:
         group=config.GROUP,
         name=config.NAME,
         id=str(uuid.uuid4()),
-        mode="disabled" if device == "cpu" else "online",
+        mode="online" if online else "disabled"
     )
     wandb.run.save()
     print(f"=======================================")

@@ -137,6 +137,8 @@ class Actor(nn.Module):
         deterministic = not self.training
         state = torch.tensor(state, device=device, dtype=torch.float32)
         action = self(state, deterministic=deterministic)[0].cpu().numpy()
+        # make sure norm = 1
+        action /= np.linalg.norm(action)
         return action
 
 

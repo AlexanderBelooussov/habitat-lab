@@ -86,8 +86,13 @@ class Actor(nn.Module):
             nn.ReLU(),
             nn.Linear(256, 256),
             nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.ReLU(),
             nn.Linear(256, action_dim),
-            nn.Tanh(),
+            # nn.Tanh(),
+            nn.Softmax(),
         ).to(self.device)
 
     def forward(self, state) -> torch.Tensor:
@@ -136,12 +141,13 @@ class BC:  # noqa
         state, action, _, _, _ = batch.to_tensor(state_keys=used_inputs)
 
         # Compute actor loss
+        self.actor_optimizer.zero_grad()
+        self.actor.train()
         pi = self.actor(state)
-        # actor_loss = F.mse_loss(pi, action)
         actor_loss = F.cross_entropy(pi, action.long())
         log_dict["actor_loss"] = actor_loss.item()
         # Optimize the actor
-        self.actor_optimizer.zero_grad()
+        # self.actor_optimizer.zero_grad()
         actor_loss.backward()
         self.actor_optimizer.step()
 
@@ -232,7 +238,7 @@ def train(config):
             actor = trainer.actor
 
         wandb_init(config)
-
+        wandb.watch(actor, log="all")
         evaluations = []
         batch_gen = batch_generator(
             config.TASK_CONFIG,
