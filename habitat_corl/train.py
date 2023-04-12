@@ -33,7 +33,6 @@ def main():
     if device == "cuda:0":
         tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
 
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--algorithm",
