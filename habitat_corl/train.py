@@ -6,6 +6,8 @@ import habitat_corl.sac_n
 import habitat_corl.dt
 import habitat_corl.any_percent_bc
 import habitat_corl.td3_bc
+import habitat_corl.iql
+import habitat_corl.edac
 from habitat_baselines.config.default import get_config
 from habitat_corl.shortest_path_dataset import register_new_sensors
 
@@ -39,7 +41,7 @@ def main():
         type=str,
         default="sacn",
         choices=["sacn", "dt", "bc", "td3_bc", "sac_n", "td3bc", "bc_10",
-                 "bc10"],
+                 "bc10", "iql", "edac"],
         help="Algorithm to use",
     )
     parser.add_argument(
@@ -110,6 +112,16 @@ def main():
         config = get_config(config, [])
         config.defrost()
         algo_config = config.RL.TD3_BC
+    elif algorithm == "iql":
+        config = "habitat_corl/configs/iql_pointnav.yaml"
+        config = get_config(config, [])
+        config.defrost()
+        algo_config = config.RL.IQL
+    elif algorithm == "edac":
+        config = "habitat_corl/configs/edac_pointnav.yaml"
+        config = get_config(config, [])
+        config.defrost()
+        algo_config = config.RL.EDAC
     else:
         raise ValueError("Invalid algorithm/task combination")
 
@@ -154,6 +166,10 @@ def main():
         habitat_corl.any_percent_bc.train(config)
     elif algorithm == "td3bc":
         habitat_corl.td3_bc.train(config)
+    elif algorithm == "iql":
+        habitat_corl.iql.train(config)
+    elif algorithm == "edac":
+        habitat_corl.edac.train(config)
     else:
         raise ValueError("Invalid algorithm")
 

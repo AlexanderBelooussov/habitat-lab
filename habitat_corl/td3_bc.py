@@ -234,7 +234,6 @@ def train(config):
     task_config = config.TASK_CONFIG
     set_seed(config.SEED)
     wandb_init(config)
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     mean_std = calc_mean_std(config.TASK_CONFIG,
                              used_inputs=config.MODEL.used_inputs)
@@ -338,7 +337,6 @@ def train(config):
         for t in trange(int(algo_config.max_timesteps), desc="Training"):
             batch = next(batch_gen)
             batch.normalize_states(mean_std)
-            batch.to_tensor(device=device)
             log_dict = trainer.train(batch, used_inputs=config.MODEL.used_inputs)
             wandb.log(log_dict, step=trainer.total_it)
             # Evaluate episode
