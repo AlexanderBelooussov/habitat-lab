@@ -352,6 +352,10 @@ class ReplayBuffer:
     def num_steps(self):
         return len(self.actions)
 
+    @property
+    def num_episodes(self):
+        return len(set(zip(self.scenes, self.episode_ids)))
+
     def __sizeof__(self):
         size = 0
         for key in self.states.keys():
