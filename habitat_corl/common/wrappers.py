@@ -126,7 +126,7 @@ def wrap_env(
         return np.concatenate([state[key] for key in used_inputs], axis=-1)
 
     def normalize_state(state):
-        return (state - state_mean) / state_std
+        return (state - state_mean) / (state_std + 1e-8)
 
     def transform_state(state):
         raw_state = deepcopy(state)

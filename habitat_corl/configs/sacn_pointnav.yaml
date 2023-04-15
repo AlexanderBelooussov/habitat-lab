@@ -31,7 +31,7 @@ RL:
     tau: 0.005
     actor_learning_rate: 0.00003
     critic_learning_rate: 0.00003
-    alpha_learning_rate: 0.0003
+    alpha_learning_rate: 0.00003
     max_action: 1.0
     # training params
     buffer_size: 1_000_000

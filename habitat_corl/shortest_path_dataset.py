@@ -318,7 +318,8 @@ def generate_shortest_path_dataset(config, train_episodes=None,
 
 def load_full_dataset(config, groups=None, datasets=None, continuous=False,
                       ignore_stop=False, single_goal=None,
-                      frac=1.0, discount=0.99, max_episode_steps=1000):
+                      frac=1.0, discount=0.99, max_episode_steps=1000,
+                      normalization_data=None):
     if datasets is None:
         datasets = [
             "states/position",
@@ -355,6 +356,8 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
         rpb.to_continuous_actions()
 
     rpb.to_numpy()
+    if normalization_data is not None:
+        rpb.normalize_states(normalization_data)
 
     if frac < 1.0:
         # keep the best trajectories (for BC-x%)
@@ -470,7 +473,8 @@ def batch_generator(
     single_goal=None,
     frac=1.0,
     discount=0.99,
-    max_episode_steps=1000
+    max_episode_steps=1000,
+    normalization_data=None
 ):
     if continuous:
         ignore_stop = True
@@ -498,7 +502,8 @@ def batch_generator(
             single_goal=single_goal,
             frac=frac,
             discount=discount,
-            max_episode_steps=max_episode_steps
+            max_episode_steps=max_episode_steps,
+            normalization_data=normalization_data
         )
         while True:
             yield dataset.sample(n_transitions)
@@ -559,6 +564,11 @@ def calc_mean_std(config, groups=None, used_inputs=None):
                             std = new_std
             all_data = np.concatenate(all_data, axis=0)
             stats[ds] = (np.mean(all_data, axis=0), np.std(all_data, axis=0))
+
+    if "state_heading_vec" in stats:
+        stats["state_heading_vec"] = (np.zeros(2), np.ones(2))
+    if "state_position" in stats and "state_goal_position" in stats:
+        stats["state_goal_position"] = stats["state_position"]
 
     if used_inputs is not None:
         used_mean = []

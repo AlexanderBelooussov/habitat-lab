@@ -399,9 +399,9 @@ def train(config):
             if algo_config.iql_deterministic
             else GaussianPolicy(state_dim, action_dim, max_action)
         ).to(device)
-        v_optimizer = torch.optim.Adam(v_network.parameters(), lr=3e-6)
-        q_optimizer = torch.optim.Adam(q_network.parameters(), lr=3e-6)
-        actor_optimizer = torch.optim.Adam(actor.parameters(), lr=3e-6)
+        v_optimizer = torch.optim.Adam(v_network.parameters(), lr=3e-5)
+        q_optimizer = torch.optim.Adam(q_network.parameters(), lr=3e-5)
+        actor_optimizer = torch.optim.Adam(actor.parameters(), lr=3e-5)
 
         kwargs = {
             "max_action": max_action,

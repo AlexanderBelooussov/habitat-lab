@@ -289,13 +289,18 @@ class ReplayBuffer:
         return sample
 
     def normalize_states(self, mean_std: Dict) -> Dict:
+        normalized = 0
+        goal = len(self.states.keys())
         for key in list(mean_std.keys()):
-            if key in self.states:
-                self.states[key] = (self.states[key] - mean_std[key][0]) / (
-                        mean_std[key][1] + 1e-8)
-            if key in self.next_states:
-                self.next_states[key] = (self.next_states[key] - mean_std[key][0]) / (
-                        mean_std[key][1] + 1e-8)
+            state_key = key.replace("state_", "")
+            if state_key in self.states:
+                self.states[state_key] = (self.states[state_key] - mean_std[key][0]) / (
+                    mean_std[key][1] + 1e-8)
+                normalized += 1
+            if state_key in self.next_states:
+                self.next_states[state_key] = (self.next_states[state_key] - mean_std[key][0]) / (
+                    mean_std[key][1] + 1e-8)
+        assert normalized == goal
 
     def _normalize_rgb(self):
         # rgb_states = self.states['rgb'] / 255.0

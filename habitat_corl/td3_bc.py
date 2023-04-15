@@ -271,7 +271,8 @@ def train(config):
                      [f"next_state_{x}" for x in config.MODEL.used_inputs] + \
                      ["action", "reward", "done"],
             continuous=True,
-            single_goal=get_goal(algo_config, eval_episodes)
+            single_goal=get_goal(algo_config, eval_episodes),
+            normalization_data=mean_std
         )
 
         max_action = float(env.action_space.high[0])
@@ -289,12 +290,12 @@ def train(config):
         set_seed(seed, env)
 
         actor = Actor(state_dim, action_dim, max_action).to(device)
-        actor_optimizer = torch.optim.Adam(actor.parameters(), lr=3e-5)
+        actor_optimizer = torch.optim.Adam(actor.parameters(), lr=3e-4)
 
         critic_1 = Critic(state_dim, action_dim).to(device)
-        critic_1_optimizer = torch.optim.Adam(critic_1.parameters(), lr=3e-5)
+        critic_1_optimizer = torch.optim.Adam(critic_1.parameters(), lr=3e-4)
         critic_2 = Critic(state_dim, action_dim).to(device)
-        critic_2_optimizer = torch.optim.Adam(critic_2.parameters(), lr=3e-5)
+        critic_2_optimizer = torch.optim.Adam(critic_2.parameters(), lr=3e-4)
 
         wandb.watch(actor)
         wandb.watch(critic_1)
@@ -336,7 +337,6 @@ def train(config):
         evaluations = []
         for t in trange(int(algo_config.max_timesteps), desc="Training"):
             batch = next(batch_gen)
-            batch.normalize_states(mean_std)
             log_dict = trainer.train(batch, used_inputs=config.MODEL.used_inputs)
             wandb.log(log_dict, step=trainer.total_it)
             # Evaluate episode
