@@ -429,6 +429,10 @@ def train(config):
         # Initialize actor
         trainer = ImplicitQLearning(**kwargs)
 
+        wandb.watch(trainer.actor, log="all")
+        wandb.watch(trainer.qf, log="all")
+        wandb.watch(trainer.vf, log="all")
+
         if algo_config.load_model != "":
             policy_file = Path(algo_config.load_model)
             trainer.load_state_dict(torch.load(policy_file))

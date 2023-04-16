@@ -414,6 +414,10 @@ def train(config):
             alpha_learning_rate=config.RL.SAC_N.alpha_learning_rate,
             device=device,
         )
+
+        wandb.watch(trainer.actor, log="all")
+        wandb.watch(trainer.critic, log="all")
+
         # saving config to the checkpoint
         if hasattr(config,
                    "CHECKPOINT_FOLDER") and config.CHECKPOINT_FOLDER is not None:

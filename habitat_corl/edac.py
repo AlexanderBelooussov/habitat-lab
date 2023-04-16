@@ -472,6 +472,10 @@ def train(config):
             alpha_learning_rate=algo_config.alpha_learning_rate,
             device=device,
         )
+
+        wandb.watch(trainer.actor, log="all")
+        wandb.watch(trainer.critic, log="all")
+
         if hasattr(config,
                    "CHECKPOINT_FOLDER") and config.CHECKPOINT_FOLDER is not None:
             print(f"Checkpoints path: {config.CHECKPOINT_FOLDER}")
