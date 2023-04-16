@@ -154,6 +154,8 @@ def main():
 
     if scene == "debug":
         algo_config.eval_episodes = 10
+    else:
+        algo_config.eval_episodes = 100
 
     config.freeze()
     register_new_sensors(config.TASK_CONFIG)

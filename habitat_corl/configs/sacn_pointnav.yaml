@@ -40,7 +40,7 @@ RL:
     num_updates_on_epoch: 1000
     normalize_reward: False
     # evaluation params
-    eval_episodes: 20
+    eval_episodes: 100
     eval_every: 5
     # general params
     deterministic_torch: False
