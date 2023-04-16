@@ -27,7 +27,7 @@ from habitat_corl.common.utils import restructure_results, train_eval_split, \
 from habitat_corl.common.wrappers import wrap_env
 from habitat_corl.replay_buffer import get_input_dims, ReplayBuffer
 from habitat_corl.shortest_path_dataset import calc_mean_std, \
-    get_stored_groups, register_new_sensors
+    get_stored_groups, register_new_sensors, load_full_dataset
 from habitat_baselines.config.default import get_config
 
 
@@ -67,47 +67,88 @@ def load_trajectories(
 ) -> Tuple[List[DefaultDict[str, np.ndarray]], Dict[str, Any]]:
     if used_inputs is None:
         used_inputs = ["postion", "heading", "pointgoal"]
-    groups = get_stored_groups(config.TASK_CONFIG) if groups is None else groups
-    dataset = [ReplayBuffer() for _ in groups]
-    for i, group in enumerate(groups):
-        dataset[i].from_hdf5_group(
-            config.TASK_CONFIG.DATASET.SP_DATASET_PATH,
-            group,
-            ignore_stop=config.RL.DT.ignore_stop,
-            single_goal=single_goal
-        )
+
+    paths = []
+    if hasattr(config.TASK_CONFIG.DATASET, "SP_DATASET_PATH"):
+        paths.append(config.TASK_CONFIG.DATASET.SP_DATASET_PATH)
+    if hasattr(config.TASK_CONFIG.DATASET, "WEB_DATASET_PATH"):
+        paths.append(config.TASK_CONFIG.DATASET.WEB_DATASET_PATH)
+    dataset = []
+    i = 0
+    for path in paths:
+        path_groups = get_stored_groups(path)
+        if groups is not None:
+            intersect = list(set(groups) & set(path_groups))
+            if len(intersect) > 0:
+                path_groups = intersect
+        dataset += [ReplayBuffer() for _ in path_groups]
+        for group in path_groups:
+            dataset[i].from_hdf5_group(
+                path,
+                group,
+                ignore_stop=config.RL.DT.ignore_stop,
+                single_goal=single_goal
+            )
+            i += 1
     traj, traj_len = [], []
 
+    buffer = load_full_dataset(
+        config.TASK_CONFIG,
+        groups=groups,
+        datasets=["action", "done", "reward"] + \
+            [f"state_{key}" for key in used_inputs] + \
+            [f"next_state_{key}" for key in used_inputs],
+        ignore_stop=config.RL.DT.ignore_stop,
+        single_goal=single_goal
+    )
+
     data_, episode_step = defaultdict(list), 0
-    for i, buffer in tqdm(enumerate(dataset), desc="Processing trajectories"):
-        for episode_step in range(buffer.num_steps):
-            state = [buffer.states[key][episode_step] for key in used_inputs]
-            state = np.concatenate(state, axis=-1)
-            data_["observations"].append(state)
-            # one-hot encode actions
-            data_["actions"].append(
-                np.eye(action_dim)[buffer.actions[episode_step]]
-            )
-
-            data_["rewards"].append(buffer.rewards[episode_step])
-
-        episode_data = {k: np.array(v, dtype=np.float32) for k, v in
-                        data_.items()}
-        # return-to-go if gamma=1.0, just discounted returns else
-        episode_data["returns"] = discounted_cumsum(
-            episode_data["rewards"], gamma=gamma
+    for episode_step in range(buffer.num_steps):
+        state = [buffer.states[key][episode_step] for key in used_inputs]
+        state = np.concatenate(state, axis=-1)
+        data_["observations"].append(state)
+        # one-hot encode actions
+        data_["actions"].append(
+            np.eye(action_dim)[buffer.actions[episode_step]]
         )
-        traj.append(episode_data)
-        traj_len.append(episode_step)
-        # reset trajectory buffer
-        data_, episode_step = defaultdict(list), 0
+
+        data_["rewards"].append(buffer.rewards[episode_step])
+        episode_id = buffer.episode_ids[episode_step]
+        if episode_step == buffer.num_steps - 1 or \
+                buffer.episode_ids[episode_step + 1] != episode_id:
+            episode_data = {k: np.array(v, dtype=np.float32) for k, v in
+                            data_.items()}
+            # return-to-go if gamma=1.0, just discounted returns else
+            episode_data["returns"] = discounted_cumsum(
+                episode_data["rewards"], gamma=gamma
+            )
+            traj.append(episode_data)
+            traj_len.append(episode_step)
+            # reset trajectory buffer
+            data_, episode_step = defaultdict(list), 0
 
     # needed for normalization, weighted sampling, other stats can be added also
     # concat all states to get mean and std
-    all_obs = np.concatenate([d["observations"] for d in traj], axis=0)
+    means = []
+    std = []
+    for key in used_inputs:
+        if key == "goal_position" and "position" in used_inputs:
+            means.append(buffer.states["position"].mean(0))
+            std.append(buffer.states["position"].std(0))
+        if key == "heading_vec":
+            means.append(np.zeros(2))
+            std.append(np.ones(2))
+        else:
+            means.append(buffer.states[key].mean(0))
+            std.append(buffer.states[key].std(0))
+
+    means = np.concatenate(means, axis=-1)
+    std = np.concatenate(std, axis=-1)
+
+    # all_obs = np.concatenate([d["observations"] for d in traj], axis=0)
     info = {
-        "obs_mean": all_obs.mean(0, keepdims=True),
-        "obs_std": all_obs.std(0, keepdims=True) + 1e-6,
+        "obs_mean": means,
+        "obs_std": std + 1e-8,
         "traj_lens": np.array(traj_len),
     }
     return traj, info

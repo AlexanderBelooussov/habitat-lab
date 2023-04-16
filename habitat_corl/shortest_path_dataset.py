@@ -338,8 +338,12 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
     rpb = ReplayBuffer()
 
     for file_path in paths:
-        groups = get_stored_groups(file_path)
-        for group in tqdm(groups, desc="Loading dataset"):
+        path_groups = get_stored_groups(file_path)
+        if groups is not None:
+            intersect = list(set(groups) & set(path_groups))
+            if len(intersect) > 0:
+                path_groups = intersect
+        for group in tqdm(path_groups, desc="Loading dataset"):
             rpb.from_hdf5_group(
                 file_path=file_path,
                 group=group,
