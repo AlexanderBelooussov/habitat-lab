@@ -290,12 +290,12 @@ def train(config):
         set_seed(seed, env)
 
         actor = Actor(state_dim, action_dim, max_action).to(device)
-        actor_optimizer = torch.optim.Adam(actor.parameters(), lr=3e-4)
+        actor_optimizer = torch.optim.Adam(actor.parameters(), lr=3e-5)
 
         critic_1 = Critic(state_dim, action_dim).to(device)
-        critic_1_optimizer = torch.optim.Adam(critic_1.parameters(), lr=3e-4)
+        critic_1_optimizer = torch.optim.Adam(critic_1.parameters(), lr=3e-5)
         critic_2 = Critic(state_dim, action_dim).to(device)
-        critic_2_optimizer = torch.optim.Adam(critic_2.parameters(), lr=3e-4)
+        critic_2_optimizer = torch.optim.Adam(critic_2.parameters(), lr=3e-5)
 
         wandb.watch(actor)
         wandb.watch(critic_1)
