@@ -77,6 +77,12 @@ def main():
         action="store_true",
         help="Use web dataset",
     )
+    parser.add_argument(
+        "--comment",
+        type=str,
+        default="",
+        help="Comment to add to the run name",
+    )
 
     args = parser.parse_args()
 
@@ -86,6 +92,7 @@ def main():
     n_eval_episodes = args.n_eval_episodes
     seed = args.seed
     scene = args.scene
+    comment = args.comment
 
     if algorithm == "sacn" and task != "objectnav":
         config = "habitat_corl/configs/sacn_pointnav.yaml"
@@ -156,6 +163,8 @@ def main():
         algo_config.eval_episodes = 10
     else:
         algo_config.eval_episodes = 100
+
+    config.NAME += f"-{comment}"
 
     config.freeze()
     register_new_sensors(config.TASK_CONFIG)

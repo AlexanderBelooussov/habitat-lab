@@ -41,7 +41,7 @@ RL:
     log_every: 100
     max_action: 1.0
     normalize_reward: false
-    num_critics: 10
+    num_critics: 25
     num_epochs: 1000
     num_updates_on_epoch: 1000
     tau: 0.005

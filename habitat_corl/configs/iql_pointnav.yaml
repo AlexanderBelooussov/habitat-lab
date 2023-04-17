@@ -39,7 +39,7 @@ RL:
     normalize: true
     normalize_reward: false
     seed: 0
-    tau: 0.005
+    tau: 0.0005
     # other params
     load_full_dataset: True
     ignore_stop: True

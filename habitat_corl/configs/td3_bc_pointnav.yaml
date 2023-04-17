@@ -41,7 +41,7 @@ RL:
     policy_freq: 2
     policy_noise: 0.2
     seed: 0
-    tau: 0.005
+    tau: 0.0005
     # other params
     load_full_dataset: True
     ignore_stop: True
