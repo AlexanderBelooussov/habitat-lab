@@ -86,9 +86,7 @@ class Actor(nn.Module):
             nn.ReLU(),
             nn.Linear(256, 256),
             nn.ReLU(),
-            nn.Linear(256, action_dim),
-            # nn.Tanh(),
-            nn.Softmax(),
+            nn.Linear(256, action_dim)
         ).to(self.device)
 
     def forward(self, state) -> torch.Tensor:
@@ -107,6 +105,7 @@ class Actor(nn.Module):
 
         action = self.forward(state)
         # action = torch.argmax(action).item()
+        action = torch.softmax(action, dim=-1)
         action = torch.distributions.Categorical(logits=action).sample().item()
         # move net back to original device
         if device != self.device:
@@ -211,7 +210,7 @@ def train(config):
         set_seed(seed, env)
 
         actor = Actor(config, env)
-        actor_optimizer = torch.optim.Adam(actor.parameters(), lr=3e-5)
+        actor_optimizer = torch.optim.Adam(actor.parameters(), lr=3e-6)
 
         kwargs = {
             "actor": actor,
