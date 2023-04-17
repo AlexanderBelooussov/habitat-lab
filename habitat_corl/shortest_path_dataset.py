@@ -1,6 +1,7 @@
 import argparse
 import copy
 import gc
+import pickle
 import sys
 from typing import Any, Union
 
@@ -315,6 +316,75 @@ def generate_shortest_path_dataset(config, train_episodes=None,
     dataset_to_dhf5(dataset, config)
     return dataset
 
+def get_pickle_path(config, ignore_stop, single_goal, continuous):
+    path = f"data/dataset"
+    scene = config.DATASET.CONTENT_SCENES[0]
+    path += f"_scene_{scene}"
+    if hasattr(config.DATASET, "SP_DATASET_PATH"):
+        path += f"_sp"
+        if "debug" in config.DATASET.SP_DATASET_PATH:
+            path += f"_debug"
+    if hasattr(config.DATASET, "WEB_DATASET_PATH"):
+        path += f"_web"
+    if continuous:
+        path += f"_continuous"
+    if ignore_stop:
+        path += f"_ignore_stop"
+    if single_goal is not None:
+        path += f"_single_goal"
+
+    path += ".pkl"
+    return path
+def save_as_pickle(
+    obj,
+    config,
+    groups,
+    datasets,
+    ignore_stop,
+    single_goal,
+    continuous
+):
+    path = get_pickle_path(config, ignore_stop, single_goal, continuous)
+
+    d = {
+        "groups": groups,
+        "datasets": datasets,
+        "ignore_stop": ignore_stop,
+        "single_goal": single_goal,
+        "continuous": continuous,
+        "obj": obj
+    }
+
+
+    with open(path, "wb") as f:
+        pickle.dump(d, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def load_from_pickle(file_path):
+    with open(file_path, "rb") as f:
+        return pickle.load(f)
+
+
+def check_pickles(
+    config,
+    groups,
+    datasets,
+    ignore_stop,
+    single_goal,
+    continuous
+):
+    path = get_pickle_path(config, ignore_stop, single_goal, continuous)
+    if os.path.exists(path):
+        d = load_from_pickle(path)
+        if d["groups"] == groups \
+            and d["datasets"] == datasets \
+            and d["ignore_stop"] == ignore_stop \
+            and d["single_goal"] == single_goal \
+            and d["continuous"] == continuous:
+            return d["obj"]
+    return None
+
+
 
 def load_full_dataset(config, groups=None, datasets=None, continuous=False,
                       ignore_stop=False, single_goal=None,
@@ -327,39 +397,46 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
             "states/pointgoal",
             "action"
         ]
+    pkl = check_pickles(config, groups, datasets, ignore_stop, single_goal, continuous)
+    if pkl is not None:
+        rpb = pkl
+    else:
+        paths = []
+        if hasattr(config.DATASET, "SP_DATASET_PATH"):
+            paths.append(config.DATASET.SP_DATASET_PATH)
+        if hasattr(config.DATASET, "WEB_DATASET_PATH"):
+            paths.append(config.DATASET.WEB_DATASET_PATH)
 
-    paths = []
-    if hasattr(config.DATASET, "SP_DATASET_PATH"):
-        paths.append(config.DATASET.SP_DATASET_PATH)
-    if hasattr(config.DATASET, "WEB_DATASET_PATH"):
-        paths.append(config.DATASET.WEB_DATASET_PATH)
+        datasets = [dataset.replace(f"s/", "_") for dataset in datasets]
+        rpb = ReplayBuffer()
 
-    datasets = [dataset.replace(f"s/", "_") for dataset in datasets]
-    rpb = ReplayBuffer()
+        for file_path in paths:
+            path_groups = get_stored_groups(file_path)
+            if groups is not None:
+                intersect = list(set(groups) & set(path_groups))
+                if len(intersect) > 0:
+                    path_groups = intersect
+            for group in tqdm(path_groups, desc="Loading dataset"):
+                rpb.from_hdf5_group(
+                    file_path=file_path,
+                    group=group,
+                    datasets=datasets,
+                    ignore_stop=ignore_stop,
+                    single_goal=single_goal,
+                    continuous=continuous,
+                )
+        # print size of dataset in memory (MBs)
+        print(f"Dataset size: {sys.getsizeof(rpb) / 1024 / 1024:.3f} MBs\n"
+              f"Number of transitions: {rpb.num_steps}\n"
+              f"Number of episodes: {rpb.num_episodes}\n")
+        if continuous:
+            rpb.to_continuous_actions()
 
-    for file_path in paths:
-        path_groups = get_stored_groups(file_path)
-        if groups is not None:
-            intersect = list(set(groups) & set(path_groups))
-            if len(intersect) > 0:
-                path_groups = intersect
-        for group in tqdm(path_groups, desc="Loading dataset"):
-            rpb.from_hdf5_group(
-                file_path=file_path,
-                group=group,
-                datasets=datasets,
-                ignore_stop=ignore_stop,
-                single_goal=single_goal,
-                continuous=continuous,
-            )
-    # print size of dataset in memory (MBs)
-    print(f"Dataset size: {sys.getsizeof(rpb) / 1024 / 1024:.3f} MBs\n"
-          f"Number of transitions: {rpb.num_steps}\n"
-          f"Number of episodes: {rpb.num_episodes}\n")
-    if continuous:
-        rpb.to_continuous_actions()
+        rpb.to_numpy()
 
-    rpb.to_numpy()
+        save_as_pickle(rpb, config, groups, datasets, ignore_stop, single_goal, continuous)
+
+
     if normalization_data is not None:
         rpb.normalize_states(normalization_data)
 
