@@ -145,6 +145,7 @@ def main():
             algo_config.target_returns = "(1.0, 10.0)"
         algo_config.single_goal = True
         config.MODEL.used_inputs = ["position", "heading_vec"]
+        algo_config.ignore_stop = True
     elif task == "pointnav_depth":
         config.GROUP = f"PointNavDepth_{scene}"
         algo_config.single_goal = False

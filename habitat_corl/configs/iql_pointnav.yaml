@@ -12,10 +12,10 @@ VIDEO_OPTION: ["disk"]  # Can be uncommented to generate videos.
 TENSORBOARD_DIR: "tb"
 VIDEO_DIR: "video_dir"
 TEST_EPISODE_COUNT: -1  # Evaluate on all episodes if -1
-EVAL_CKPT_PATH_DIR: "data/new_checkpoints/td3_bc"
+EVAL_CKPT_PATH_DIR: "data/new_checkpoints/iql"
 NUM_PROCESSES: 1
 SENSORS: ["DEPTH_SENSOR"]
-CHECKPOINT_FOLDER: "data/new_checkpoints/td3_bc"
+CHECKPOINT_FOLDER: "data/new_checkpoints/iql"
 NUM_UPDATES: 1_000_000
 LOG_INTERVAL: 25
 CHECKPOINT_INTERVAL: 2000
@@ -26,13 +26,13 @@ RL:
     name: "PointNavResNetPolicy"
   IQL:
     batch_size: 256
-    beta: 3.0
+    beta: 10.0
     buffer_size: 10000000
     device: cuda
     discount: 0.99
     eval_freq: 5000
     iql_deterministic: false
-    iql_tau: 0.7
+    iql_tau: 0.9
     load_model: ''
     max_timesteps: 1000000
     eval_episodes: 100

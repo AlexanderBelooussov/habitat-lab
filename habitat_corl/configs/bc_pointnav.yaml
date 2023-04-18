@@ -11,10 +11,10 @@ VIDEO_OPTION: ["disk"]  # Can be uncommented to generate videos.
 TENSORBOARD_DIR: "tb"
 VIDEO_DIR: "video_dir"
 TEST_EPISODE_COUNT: -1  # Evaluate on all episodes if -1
-EVAL_CKPT_PATH_DIR: "data/new_checkpoints"
+EVAL_CKPT_PATH_DIR: "data/new_checkpoints/bc"
 NUM_PROCESSES: 1
 SENSORS: ["DEPTH_SENSOR"]
-CHECKPOINT_FOLDER: "data/new_checkpoints"
+CHECKPOINT_FOLDER: "data/new_checkpoints/bc"
 NUM_UPDATES: 1_000_000
 LOG_INTERVAL: 25
 CHECKPOINT_INTERVAL: 2000
