@@ -397,7 +397,7 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
             "states/pointgoal",
             "action"
         ]
-    pkl = check_pickles(config, groups, datasets, ignore_stop, single_goal, continuous)
+    # pkl = check_pickles(config, groups, datasets, ignore_stop, single_goal, continuous)
     if pkl is not None:
         rpb = pkl
     else:
@@ -434,7 +434,7 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
 
         rpb.to_numpy()
 
-        save_as_pickle(rpb, config, groups, datasets, ignore_stop, single_goal, continuous)
+        # save_as_pickle(rpb, config, groups, datasets, ignore_stop, single_goal, continuous)
 
 
     if normalization_data is not None:
