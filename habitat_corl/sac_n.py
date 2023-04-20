@@ -88,6 +88,10 @@ class Actor(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
         )
         # with separate layers works better than with Linear(hidden_dim, 2 * action_dim)
         self.mu = nn.Linear(hidden_dim, action_dim)
@@ -150,6 +154,10 @@ class VectorizedCritic(nn.Module):
         super().__init__()
         self.critic = nn.Sequential(
             VectorizedLinear(state_dim + action_dim, hidden_dim, num_critics),
+            nn.ReLU(),
+            VectorizedLinear(hidden_dim, hidden_dim, num_critics),
+            nn.ReLU(),
+            VectorizedLinear(hidden_dim, hidden_dim, num_critics),
             nn.ReLU(),
             VectorizedLinear(hidden_dim, hidden_dim, num_critics),
             nn.ReLU(),
