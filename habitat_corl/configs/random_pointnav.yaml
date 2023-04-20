@@ -1,0 +1,43 @@
+# Note:  Hyperparameters have been changed slightly from
+# the paper to allow for things to easily run on 1 GPU
+
+BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_medium.yaml"
+#BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_small.yaml"
+TRAINER_NAME: "bc"
+ENV_NAME: "NavRLEnv"
+SIMULATOR_GPU_ID: 0
+TORCH_GPU_ID: 0
+#VIDEO_OPTION: []
+VIDEO_OPTION: ["disk"]  # Can be uncommented to generate videos.
+TENSORBOARD_DIR: "tb"
+VIDEO_DIR: "video_dir"
+TEST_EPISODE_COUNT: -1  # Evaluate on all episodes if -1
+EVAL_CKPT_PATH_DIR: "data/new_checkpoints/td3_bc"
+NUM_PROCESSES: 1
+SENSORS: ["DEPTH_SENSOR"]
+CHECKPOINT_FOLDER: "data/new_checkpoints/td3_bc"
+NUM_UPDATES: 1_000_000
+LOG_INTERVAL: 25
+CHECKPOINT_INTERVAL: 2000
+SEED:  0  # Sets Gym, PyTorch and Numpy seeds
+
+RL:
+  POLICY:
+    name: "PointNavResNetPolicy"
+  RANDOM:
+    # other params
+    continuous: False
+    ignore_stop: True
+    single_goal: True
+    eval_episodes: 100
+
+# Wandb logging
+PROJECT: "habitat"
+GROUP: "SingleGoal"
+NAME: "TD3_BC"
+WANDB_KEY: "88503bf83ff0a806be0ebc012f36e98fb193348a"
+
+MODEL:
+  # selecting inputs to use
+#  used_inputs: ["position", "heading_vec", "goal_position"]
+  used_inputs: ["position", "heading_vec"]

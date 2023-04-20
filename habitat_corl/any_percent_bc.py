@@ -270,7 +270,7 @@ def train(config):
                     video_dir=config.VIDEO_DIR,
                     video_prefix="bc/bc",
                     ignore_stop=config.RL.BC.ignore_stop,
-                    succes_distance=config.TASK_CONFIG.TASK.SUCCESS_DISTANCE,
+                    success_distance=config.TASK_CONFIG.TASK.SUCCESS_DISTANCE,
                 )
                 evaluations.append(eval_scores)
                 print("---------------------------------------")

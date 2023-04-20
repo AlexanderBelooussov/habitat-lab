@@ -432,9 +432,6 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
 
     rpb.to_numpy()
 
-    # save_as_pickle(rpb, config, groups, datasets, ignore_stop, single_goal, continuous)
-
-
     if normalization_data is not None:
         rpb.normalize_states(normalization_data)
 

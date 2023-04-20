@@ -353,7 +353,7 @@ def train(config):
                     video=t == algo_config.max_timesteps - 1,
                     video_dir=config.VIDEO_DIR,
                     video_prefix="td3_bc/td3_bc",
-                    succes_distance=task_config.TASK.SUCCESS_DISTANCE,
+                    success_distance=task_config.TASK.SUCCESS_DISTANCE,
                     ignore_stop=algo_config.ignore_stop,
                 )
                 evaluations.append(eval_scores)
