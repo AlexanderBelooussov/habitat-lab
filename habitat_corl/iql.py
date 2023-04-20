@@ -30,14 +30,16 @@ from habitat_corl.shortest_path_dataset import register_new_sensors, \
 
 TensorBatch = List[torch.Tensor]
 
-
 EXP_ADV_MAX = 100.0
 LOG_STD_MIN = -5.0
 LOG_STD_MAX = 2.0
 
+
 def soft_update(target: nn.Module, source: nn.Module, tau: float):
-    for target_param, source_param in zip(target.parameters(), source.parameters()):
-        target_param.data.copy_((1 - tau) * target_param.data + tau * source_param.data)
+    for target_param, source_param in zip(target.parameters(),
+                                          source.parameters()):
+        target_param.data.copy_(
+            (1 - tau) * target_param.data + tau * source_param.data)
 
 
 def return_reward_range(dataset, max_episode_steps):
@@ -65,7 +67,7 @@ def modify_reward(dataset, env_name, max_episode_steps=1000):
 
 
 def asymmetric_l2_loss(u: torch.Tensor, tau: float) -> torch.Tensor:
-    return torch.mean(torch.abs(tau - (u < 0).float()) * u**2)
+    return torch.mean(torch.abs(tau - (u < 0).float()) * u ** 2)
 
 
 class Squeeze(nn.Module):
@@ -88,7 +90,8 @@ class MLP(nn.Module):
         super().__init__()
         n_dims = len(dims)
         if n_dims < 2:
-            raise ValueError("MLP requires at least two dims (input and output)")
+            raise ValueError(
+                "MLP requires at least two dims (input and output)")
 
         layers = []
         for i in range(n_dims - 2):
@@ -129,10 +132,12 @@ class GaussianPolicy(nn.Module):
 
     @torch.no_grad()
     def act(self, state: np.ndarray, device: str = "cpu"):
-        state = torch.tensor(state.reshape(1, -1), device=device, dtype=torch.float32)
+        state = torch.tensor(state.reshape(1, -1), device=device,
+                             dtype=torch.float32)
         dist = self(state)
         action = dist.mean if not self.training else dist.sample()
-        action = torch.clamp(self.max_action * action, -self.max_action, self.max_action)
+        action = torch.clamp(self.max_action * action, -self.max_action,
+                             self.max_action)
         return action.cpu().data.numpy().flatten()
 
 
@@ -157,9 +162,11 @@ class DeterministicPolicy(nn.Module):
 
     @torch.no_grad()
     def act(self, state: np.ndarray, device: str = "cpu"):
-        state = torch.tensor(state.reshape(1, -1), device=device, dtype=torch.float32)
+        state = torch.tensor(state.reshape(1, -1), device=device,
+                             dtype=torch.float32)
         return (
-            torch.clamp(self(state) * self.max_action, -self.max_action, self.max_action)
+            torch.clamp(self(state) * self.max_action, -self.max_action,
+                        self.max_action)
             .cpu()
             .data.numpy()
             .flatten()
@@ -168,7 +175,8 @@ class DeterministicPolicy(nn.Module):
 
 class TwinQ(nn.Module):
     def __init__(
-        self, state_dim: int, action_dim: int, hidden_dim: int = 256, n_hidden: int = 2
+        self, state_dim: int, action_dim: int, hidden_dim: int = 256,
+        n_hidden: int = 2
     ):
         super().__init__()
         dims = [state_dim + action_dim, *([hidden_dim] * n_hidden), 1]
@@ -181,12 +189,14 @@ class TwinQ(nn.Module):
         sa = torch.cat([state, action], 1)
         return self.q1(sa), self.q2(sa)
 
-    def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+    def forward(self, state: torch.Tensor,
+                action: torch.Tensor) -> torch.Tensor:
         return torch.min(*self.both(state, action))
 
 
 class ValueFunction(nn.Module):
-    def __init__(self, state_dim: int, hidden_dim: int = 256, n_hidden: int = 2):
+    def __init__(self, state_dim: int, hidden_dim: int = 256,
+                 n_hidden: int = 2):
         super().__init__()
         dims = [state_dim, *([hidden_dim] * n_hidden), 1]
         self.v = MLP(dims, squeeze_output=True)
@@ -220,7 +230,8 @@ class ImplicitQLearning:
         self.v_optimizer = v_optimizer
         self.q_optimizer = q_optimizer
         self.actor_optimizer = actor_optimizer
-        self.actor_lr_schedule = CosineAnnealingLR(self.actor_optimizer, max_steps)
+        self.actor_lr_schedule = CosineAnnealingLR(self.actor_optimizer,
+                                                   max_steps)
         self.iql_tau = iql_tau
         self.beta = beta
         self.discount = discount
@@ -252,7 +263,8 @@ class ImplicitQLearning:
         terminals,
         log_dict,
     ):
-        targets = rewards + (1.0 - terminals.float()) * self.discount * next_v.detach()
+        targets = rewards + (
+                1.0 - terminals.float()) * self.discount * next_v.detach()
         qs = self.qf.both(observations, actions)
         q_loss = sum(F.mse_loss(q, targets) for q in qs) / len(qs)
         log_dict["q_loss"] = q_loss.item()
@@ -281,7 +293,8 @@ class ImplicitQLearning:
         self.actor_optimizer.step()
         self.actor_lr_schedule.step()
 
-    def train(self, batch: ReplayBuffer, used_inputs: List[str]) -> Dict[str, float]:
+    def train(self, batch: ReplayBuffer, used_inputs: List[str]) -> Dict[
+        str, float]:
         self.total_it += 1
         (
             observations,
@@ -443,7 +456,8 @@ def train(config):
             batch = next(batch_gen)
             batch.normalize_states(mean_std)
             batch.to_tensor(device=device)
-            log_dict = trainer.train(batch, used_inputs=config.MODEL.used_inputs)
+            log_dict = trainer.train(batch,
+                                     used_inputs=config.MODEL.used_inputs)
             wandb.log(log_dict, step=trainer.total_it)
             # Evaluate episode
             if (t + 1) % algo_config.eval_freq == 0:
@@ -483,6 +497,7 @@ def train(config):
                         },
                         step=trainer.total_it,
                     )
+
 
 def main():
     parser = argparse.ArgumentParser()

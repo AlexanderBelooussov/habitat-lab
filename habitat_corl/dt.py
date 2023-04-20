@@ -434,13 +434,10 @@ def eval_rollout(
         episode_return += reward
         episode_len += 1
 
-        if env.episode_over :
-            break
-        position = env.sim.get_agent_state().position
-        goal = env.current_episode.goals[0].position
-        distance = np.linalg.norm(np.array(position) - np.array(goal))
-        if ignore_stop and distance < success_distance:
+        if ignore_stop and info["distance_to_goal"] < success_distance:
             info["success"] = True
+            break
+        if env.episode_over:
             break
 
     if video:

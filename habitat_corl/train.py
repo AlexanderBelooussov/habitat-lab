@@ -165,7 +165,11 @@ def main():
     else:
         algo_config.eval_episodes = 100
 
-    config.NAME += f"-{comment}"
+    if comment != "":
+        config.NAME += f"-{comment}"
+    config.NAME += f"-seed{config.SEED}"
+
+    config.CHECKPOINT_FOLDER += f"/{config.GROUP}/{config.NAME}/{config.SEED}"
 
     config.freeze()
     register_new_sensors(config.TASK_CONFIG)

@@ -44,7 +44,7 @@ RL:
     num_critics: 25
     num_epochs: 1000
     num_updates_on_epoch: 1000
-    tau: 0.005
+    tau: 0.00005
     train_seed: 10
     # other params
     load_full_dataset: True

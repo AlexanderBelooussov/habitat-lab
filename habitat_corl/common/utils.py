@@ -101,20 +101,10 @@ def wandb_init(config) -> None:
 
 
 @torch.no_grad()
-def eval_actor(
-    env,
-    actor,
-    device,
-    episodes,
-    seed,
-    max_traj_len=1000,
-    used_inputs=["pointgoal_with_gps_compass"],
-    video=False,
-    video_dir="demos",
-    video_prefix="demo",
-    ignore_stop=False,
-    succes_distance=0.2,
-):
+def eval_actor(env, actor, device, episodes, seed, max_traj_len=1000,
+               used_inputs=["pointgoal_with_gps_compass"], video=False,
+               video_dir="demos", video_prefix="demo", ignore_stop=False,
+               success_distance=0.2):
     def make_videos(observations_list, output_prefix, ep_id):
         prefix = output_prefix + "_{}".format(ep_id)
         # make dir if it does not exist
@@ -150,13 +140,11 @@ def eval_actor(
                     frame = observations_to_image(raw, info)
                     video_frames.append(frame)
             # stop if close to goal
-            position = env.sim.get_agent_state().position
-            goal = env.current_episode.goals[0].position
-            distance = np.linalg.norm(np.array(position) - np.array(goal))
+            if ignore_stop:
+                if info["distance_to_goal"] < success_distance:
+                    info["success"] = True
+                    break
             if env.episode_over:
-                break
-            if ignore_stop and distance < succes_distance:
-                info["success"] = True
                 break
 
         info = env.get_metrics()

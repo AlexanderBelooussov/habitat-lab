@@ -28,7 +28,7 @@ RL:
     hidden_dim: 256
     num_critics: 50
     gamma: 0.99
-    tau: 0.005
+    tau: 0.00005
     actor_learning_rate: 0.00003
     critic_learning_rate: 0.00003
     alpha_learning_rate: 0.00003
