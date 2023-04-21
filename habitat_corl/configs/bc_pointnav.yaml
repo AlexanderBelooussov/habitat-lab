@@ -23,6 +23,7 @@ RL:
     LOAD_MODEL: ""  # Model load file name, "" doesn't load
     batch_size: 256  # Batch size for all networks
     DISCOUNT: 0.99  # Discount factor
+    num_updates: 1_000_000  # Number of updates
     # BC
     FRAC: 1.0  # Best data fraction to use
     MAX_TRAJ_LEN: 1000  # Max trajectory length
@@ -31,6 +32,7 @@ RL:
     load_full_dataset: True
     continuous: False
     learning_rate: 0.0003
+
 
 # Wandb logging
 PROJECT: "habitat"

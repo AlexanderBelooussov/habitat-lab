@@ -249,7 +249,7 @@ def train(config):
             frac=config.RL.BC.FRAC,
             discount=config.RL.BC.DISCOUNT,
         )
-        for t in tqdm(range(int(config.NUM_UPDATES)), desc="Training"):
+        for t in tqdm(range(int(config.RL.BC.num_updates)), desc="Training"):
             batch = next(batch_gen)
             batch.normalize_states(mean_std)
             log_dict = trainer.train(batch,

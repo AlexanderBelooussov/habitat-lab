@@ -128,6 +128,7 @@ def eval_actor(env, actor, device, episodes, seed, max_traj_len=1000,
     for i in tqdm(range(len(episodes)), desc="eval", leave=False):
         video_frames = []
         observations, raw = env.reset()
+        info = env.get_metrics()
         for step in range(max_traj_len):
             action = actor.act(observations, device)
             # print(action)
@@ -140,14 +141,19 @@ def eval_actor(env, actor, device, episodes, seed, max_traj_len=1000,
                     frame = observations_to_image(raw, info)
                     video_frames.append(frame)
             # stop if close to goal
+            position = env.sim.get_agent_state().position.tolist()
+            goal_position = env.current_episode.goals[0].position
+            distance = np.linalg.norm(np.array(position) - np.array(goal_position))
             if ignore_stop:
                 if info["distance_to_goal"] < success_distance:
-                    info["success"] = True
-                    break
+                    env.step(-1)
+                    info = env.get_metrics()
+
             if env.episode_over:
+                print(f"distance_to_goal: {info['distance_to_goal']}")
+                print(f"distance: {distance}")
                 break
 
-        info = env.get_metrics()
         results.append(info)
         if video:
             make_videos(video_frames, video_prefix, i)

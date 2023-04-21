@@ -366,7 +366,7 @@ class DecisionTransformer(nn.Module):
 @torch.no_grad()
 def eval_rollout(
     model: DecisionTransformer,
-    env: gym.Env,
+    env: habitat.Env,
     target_return: float,
     device: str = "cpu",
     video=False,
@@ -408,6 +408,7 @@ def eval_rollout(
 
     # cannot step higher than model episode len, as timestep embeddings will crash
     episode_return, episode_len = 0.0, 0.0
+    info = env.get_metrics()
     for step in range(model.episode_len):
         # first select history up to step, then select last seq_len states,
         # step + 1 as : operator is not inclusive, last action is dummy with zeros
@@ -434,9 +435,10 @@ def eval_rollout(
         episode_return += reward
         episode_len += 1
 
-        if ignore_stop and info["distance_to_goal"] < success_distance:
-            info["success"] = True
-            break
+        if ignore_stop:
+            if info["distance_to_goal"] < success_distance:
+                env.step(-1)
+                info = env.get_metrics()
         if env.episode_over:
             break
 
