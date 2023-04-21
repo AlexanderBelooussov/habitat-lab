@@ -166,3 +166,12 @@ def get_goal(algorithn_config, eval_episodes):
     else:
         goal = None
     return goal
+
+
+def remove_unreachable(eval_results):
+    x = np.array(eval_results["distance_to_goal"])
+    unreachable_idx = np.where(x == float("inf"))[0]
+    for key in eval_results.keys():
+        eval_results[key] = np.array(eval_results[key])
+        eval_results[key] = np.delete(eval_results[key], unreachable_idx)
+    return eval_results

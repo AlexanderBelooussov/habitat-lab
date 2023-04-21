@@ -20,7 +20,7 @@ from tqdm import trange
 import habitat
 from habitat_baselines.config.default import get_config
 from habitat_corl.common.utils import restructure_results, train_eval_split, \
-    eval_actor, wandb_init, set_seed, get_goal
+    eval_actor, wandb_init, set_seed, get_goal, remove_unreachable
 from habitat_corl.common.wrappers import wrap_env
 from habitat_corl.replay_buffer import get_input_dims, ReplayBuffer
 from habitat_corl.shortest_path_dataset import register_new_sensors, \
@@ -356,6 +356,7 @@ def train(config):
                     success_distance=task_config.TASK.SUCCESS_DISTANCE,
                     ignore_stop=algo_config.ignore_stop,
                 )
+                eval_scores = remove_unreachable(eval_scores)
                 evaluations.append(eval_scores)
                 print("---------------------------------------")
                 print(

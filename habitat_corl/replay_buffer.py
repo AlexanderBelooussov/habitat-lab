@@ -41,6 +41,8 @@ class ReplayBuffer:
             datasets = [col for col in df.get_column_names()]
 
         n_steps = len(df['action'].values)
+        if n_steps < 2:
+            return
         if ignore_stop:
             n_steps -= 1
         for dataset in datasets:

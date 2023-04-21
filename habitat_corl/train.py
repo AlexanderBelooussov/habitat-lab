@@ -169,6 +169,8 @@ def main():
 
     if scene == "debug":
         algo_config.eval_episodes = 10
+    elif scene in ["large", "xl"]:
+        algo_config.eval_episodes = 200  # some locations may not be reachable
     else:
         algo_config.eval_episodes = 100
 

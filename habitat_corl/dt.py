@@ -23,7 +23,7 @@ import habitat
 from habitat.utils.visualizations.utils import images_to_video, \
     observations_to_image
 from habitat_corl.common.utils import restructure_results, train_eval_split, \
-    set_seed, wandb_init
+    set_seed, wandb_init, remove_unreachable
 from habitat_corl.common.wrappers import wrap_env
 from habitat_corl.replay_buffer import get_input_dims, ReplayBuffer
 from habitat_corl.shortest_path_dataset import calc_mean_std, \
@@ -598,6 +598,7 @@ def train(config):
                     )
                     eval_scores.append(result)
                 eval_scores = restructure_results(eval_scores)
+                eval_scores = remove_unreachable(eval_scores)
                 for key in eval_scores:
                     wandb.log(
                         {

@@ -27,7 +27,7 @@ from habitat.utils.visualizations.utils import images_to_video, \
     observations_to_image
 from habitat_baselines.config.default import get_config
 from habitat_corl.common.utils import restructure_results, train_eval_split, \
-    set_seed, wandb_init, eval_actor, get_goal
+    set_seed, wandb_init, eval_actor, get_goal, remove_unreachable
 from habitat_corl.common.wrappers import wrap_env
 from habitat_corl.replay_buffer import ReplayBuffer, get_input_dims
 from habitat_corl.shortest_path_dataset import register_new_sensors, \
@@ -476,6 +476,7 @@ def train(config):
                     success_distance=config.TASK_CONFIG.TASK.SUCCESS_DISTANCE,
                     ignore_stop=config.RL.SAC_N.ignore_stop,
                 )
+                eval_scores = remove_unreachable(eval_scores)
                 evaluations.append(eval_scores)
                 print("---------------------------------------")
                 print(

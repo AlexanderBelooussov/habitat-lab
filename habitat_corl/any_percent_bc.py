@@ -26,7 +26,7 @@ from habitat_corl.shortest_path_dataset import sample_transitions, \
     register_new_sensors, \
     calc_mean_std, get_stored_episodes, batch_generator
 from habitat_corl.common.utils import set_seed, wandb_init, eval_actor, \
-    get_goal, train_eval_split
+    get_goal, train_eval_split, remove_unreachable
 
 TensorBatch = List[torch.Tensor]
 
@@ -272,6 +272,7 @@ def train(config):
                     ignore_stop=config.RL.BC.ignore_stop,
                     success_distance=config.TASK_CONFIG.TASK.SUCCESS_DISTANCE,
                 )
+                eval_scores = remove_unreachable(eval_scores)
                 evaluations.append(eval_scores)
                 print("---------------------------------------")
                 print(

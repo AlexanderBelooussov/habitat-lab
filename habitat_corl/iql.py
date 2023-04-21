@@ -23,7 +23,7 @@ import habitat
 from habitat_baselines.config.default import get_config
 from habitat_corl.common.wrappers import wrap_env
 from habitat_corl.common.utils import set_seed, wandb_init, train_eval_split, \
-    get_goal, eval_actor
+    get_goal, eval_actor, remove_unreachable
 from habitat_corl.replay_buffer import ReplayBuffer, get_input_dims
 from habitat_corl.shortest_path_dataset import register_new_sensors, \
     calc_mean_std, batch_generator
@@ -476,6 +476,7 @@ def train(config):
                     success_distance=task_config.TASK.SUCCESS_DISTANCE,
                     ignore_stop=algo_config.ignore_stop,
                 )
+                eval_scores = remove_unreachable(eval_scores)
                 evaluations.append(eval_scores)
                 print("---------------------------------------")
                 print(
