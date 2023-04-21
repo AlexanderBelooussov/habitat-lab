@@ -210,7 +210,7 @@ def train(config):
         set_seed(seed, env)
 
         actor = Actor(config, env)
-        actor_optimizer = torch.optim.Adam(actor.parameters(), lr=3e-6)
+        actor_optimizer = torch.optim.Adam(actor.parameters(), lr=config.RL.BC.learning_rate)
 
         kwargs = {
             "actor": actor,

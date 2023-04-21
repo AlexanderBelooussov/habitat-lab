@@ -26,20 +26,21 @@ RL:
     name: "PointNavResNetPolicy"
   IQL:
     batch_size: 256
-    beta: 10.0
+    beta: 3.0
     buffer_size: 10000000
     device: cuda
     discount: 0.99
     eval_freq: 5000
     iql_deterministic: false
-    iql_tau: 0.9
+    iql_tau: 0.7
     load_model: ''
     max_timesteps: 1000000
     eval_episodes: 100
     normalize: true
     normalize_reward: false
     seed: 0
-    tau: 0.0005
+    tau: 0.005
+    learning_rate: 0.0003
     # other params
     load_full_dataset: True
     ignore_stop: True

@@ -26,12 +26,12 @@ RL:
     name: "PointNavResNetPolicy"
   SAC_N:
     hidden_dim: 256
-    num_critics: 50
+    num_critics: 25
     gamma: 0.99
-    tau: 0.00005
-    actor_learning_rate: 0.00003
-    critic_learning_rate: 0.00003
-    alpha_learning_rate: 0.00003
+    tau: 0.005
+    actor_learning_rate: 0.0003
+    critic_learning_rate: 0.0003
+    alpha_learning_rate: 0.0003
     max_action: 1.0
     # training params
     buffer_size: 1_000_000

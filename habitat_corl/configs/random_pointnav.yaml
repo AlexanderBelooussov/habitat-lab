@@ -3,7 +3,6 @@
 
 BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_medium.yaml"
 #BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_small.yaml"
-TRAINER_NAME: "bc"
 ENV_NAME: "NavRLEnv"
 SIMULATOR_GPU_ID: 0
 TORCH_GPU_ID: 0
@@ -16,9 +15,6 @@ EVAL_CKPT_PATH_DIR: "data/new_checkpoints/td3_bc"
 NUM_PROCESSES: 1
 SENSORS: ["DEPTH_SENSOR"]
 CHECKPOINT_FOLDER: "data/new_checkpoints/td3_bc"
-NUM_UPDATES: 1_000_000
-LOG_INTERVAL: 25
-CHECKPOINT_INTERVAL: 2000
 SEED:  0  # Sets Gym, PyTorch and Numpy seeds
 
 RL:

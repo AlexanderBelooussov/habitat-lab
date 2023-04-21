@@ -1,8 +1,4 @@
-# Note:  Hyperparameters have been changed slightly from
-# the paper to allow for things to easily run on 1 GPU
-
 BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_medium.yaml"
-TRAINER_NAME: "bc"
 ENV_NAME: "NavRLEnv"
 SIMULATOR_GPU_ID: 0
 TORCH_GPU_ID: 0
@@ -10,14 +6,10 @@ TORCH_GPU_ID: 0
 VIDEO_OPTION: ["disk"]  # Can be uncommented to generate videos.
 TENSORBOARD_DIR: "tb"
 VIDEO_DIR: "video_dir"
-TEST_EPISODE_COUNT: -1  # Evaluate on all episodes if -1
 EVAL_CKPT_PATH_DIR: "data/new_checkpoints/bc"
 NUM_PROCESSES: 1
 SENSORS: ["DEPTH_SENSOR"]
 CHECKPOINT_FOLDER: "data/new_checkpoints/bc"
-NUM_UPDATES: 1_000_000
-LOG_INTERVAL: 25
-CHECKPOINT_INTERVAL: 2000
 SEED:  1  # Sets Gym, PyTorch and Numpy seeds
 
 RL:
@@ -32,12 +24,13 @@ RL:
     batch_size: 256  # Batch size for all networks
     DISCOUNT: 0.99  # Discount factor
     # BC
-    BUFFER_SIZE:  2_000_000  # Replay buffer size
     FRAC: 1.0  # Best data fraction to use
     MAX_TRAJ_LEN: 1000  # Max trajectory length
     NORMALIZE: True  # Normalize states
     ignore_stop: False
     load_full_dataset: True
+    continuous: False
+    learning_rate: 0.0003
 
 # Wandb logging
 PROJECT: "habitat"
@@ -48,46 +41,3 @@ WANDB_KEY: "88503bf83ff0a806be0ebc012f36e98fb193348a"
 MODEL:
   # selecting inputs to use
   used_inputs: ["position", "heading", "pointgoal"]
-  ablate_depth: False
-  ablate_rgb: False
-  num_recurrent_layers: 2
-  rnn_type: "GRU"
-  backbone: "resnet18"
-  resnet_baseplanes: 32
-  normalize_visual_inputs: False
-  force_blind_policy: False
-  embed_sge: True
-  embed_goal_seg: False
-  sem_seg_pred: True
-  NO_VISION: False
-  USE_SEMANTICS: False
-  USE_PRED_SEMANTICS: False
-  SWITCH_TO_PRED_SEMANTICS_UPDATE: 0
-#  SEMANTIC_ENCODER:
-#    rednet_ckpt: "data/rednet-models/rednet_semmap_mp3d_tuned.pth"
-#    cnn_type: "ResnetSemSegEncoder"
-#    output_size: 256
-#    backbone: "resnet18"
-#    train_encoder: True
-#    embedding_size: 4
-#    is_thda: False
-#    num_classes: 29
-  RGB_ENCODER:
-    cnn_type: "ResnetRGBEncoder"
-    output_size: 256
-    backbone: "resnet18"
-    train_encoder: True
-  DEPTH_ENCODER:
-    cnn_type: "VlnResnetDepthEncoder"
-    output_size: 128
-    backbone: "resnet50"
-    trainable: False
-    ddppo_checkpoint: "data/ddppo-models/gibson-2plus-resnet50.pth"
-  STATE_ENCODER:
-    hidden_size: 2048
-    rnn_type: "GRU"
-    num_recurrent_layers: 2
-  SEQ2SEQ:
-    use_prev_action: True
-  PROGRESS_MONITOR:
-    use: False

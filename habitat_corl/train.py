@@ -83,6 +83,12 @@ def main():
         default="",
         help="Comment to add to the run name",
     )
+    parser.add_argument(
+        "--group",
+        type=str,
+        default="",
+        help="Additional change to group name",
+    )
 
     args = parser.parse_args()
 
@@ -93,6 +99,7 @@ def main():
     seed = args.seed
     scene = args.scene
     comment = args.comment
+    group = args.group
 
     if algorithm == "sacn" and task != "objectnav":
         config = "habitat_corl/configs/sacn_pointnav.yaml"
@@ -167,6 +174,8 @@ def main():
 
     if comment != "":
         config.NAME += f"-{comment}"
+    if group != "":
+        config.GROUP += f"-{group}"
     config.NAME += f"-seed{config.SEED}"
 
     config.CHECKPOINT_FOLDER += f"/{config.GROUP}/{config.NAME}/{config.SEED}"
