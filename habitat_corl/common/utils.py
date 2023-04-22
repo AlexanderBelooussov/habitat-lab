@@ -141,17 +141,15 @@ def eval_actor(env, actor, device, episodes, seed, max_traj_len=1000,
                     frame = observations_to_image(raw, info)
                     video_frames.append(frame)
             # stop if close to goal
-            position = env.sim.get_agent_state().position.tolist()
-            goal_position = env.current_episode.goals[0].position
-            distance = np.linalg.norm(np.array(position) - np.array(goal_position))
+            # position = env.sim.get_agent_state().position.tolist()
+            # goal_position = env.current_episode.goals[0].position
+            # distance = np.linalg.norm(np.array(position) - np.array(goal_position))
             if ignore_stop:
                 if info["distance_to_goal"] < success_distance and not env.episode_over:
                     env.step(-1)
                     info = env.get_metrics()
 
             if env.episode_over:
-                print(f"distance_to_goal: {info['distance_to_goal']}")
-                print(f"distance: {distance}")
                 break
 
         results.append(info)
