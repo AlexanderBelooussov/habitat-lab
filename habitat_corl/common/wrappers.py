@@ -100,7 +100,7 @@ class ContinuousActionWrapper(ActionWrapper):
             return 3
 
     def step(self, action):
-        if action == -1:
+        if isinstance(action, int) and action <= 0:
             obs = self.env.step(0)
         else:
             obs = self.env.step(self.action(action))
