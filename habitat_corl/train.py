@@ -18,7 +18,8 @@ scene_dict = {
     "medium": "17DRP5sb8fy",
     "debug": "17DRP5sb8fy",
     "small": "Pm6F8kyY3z2",
-    "large": "XcA2TqTSSAj",
+    # "large": "XcA2TqTSSAj",
+    "large": "ac26ZMwG7aT",
     "long_hallway": "Vt2qJdWjCF2",
     "xl": "uNb9QFRL6hY",
 }
@@ -143,6 +144,7 @@ def main():
     algo_config.eval_episodes = n_eval_episodes
     config.SEED = seed
     config.TASK_CONFIG.DATASET.CONTENT_SCENES = [scene_dict[scene]]
+    config.VIDEO_DIR += f"/{scene}"
 
     if ignore_stop:
         config.NAME += "-ignore_stop"
@@ -169,8 +171,6 @@ def main():
 
     if scene == "debug":
         algo_config.eval_episodes = 10
-    elif scene in ["large", "xl"]:
-        algo_config.eval_episodes = 200  # some locations may not be reachable
     else:
         algo_config.eval_episodes = 100
 

@@ -414,7 +414,7 @@ def load_full_dataset(config, groups=None, datasets=None, continuous=False,
             intersect = list(set(groups) & set(path_groups))
             if len(intersect) > 0:
                 path_groups = intersect
-        for group in tqdm(path_groups, desc="Loading dataset"):
+        for group in tqdm(path_groups[:10], desc="Loading dataset"):
             rpb.from_hdf5_group(
                 file_path=file_path,
                 group=group,
@@ -682,7 +682,8 @@ def main():
     scene_dict = {
         "medium": "17DRP5sb8fy",
         "small": "Pm6F8kyY3z2",
-        "large": "XcA2TqTSSAj",
+        # "large": "XcA2TqTSSAj",
+        "large": "ac26ZMwG7aT",
         "long_hallway": "Vt2qJdWjCF2",
         "xl": "uNb9QFRL6hY",
     }

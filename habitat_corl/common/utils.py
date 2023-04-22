@@ -105,6 +105,7 @@ def eval_actor(env, actor, device, episodes, seed, max_traj_len=1000,
                used_inputs=["pointgoal_with_gps_compass"], video=False,
                video_dir="demos", video_prefix="demo", ignore_stop=False,
                success_distance=0.2):
+    video=True
     def make_videos(observations_list, output_prefix, ep_id):
         prefix = output_prefix + "_{}".format(ep_id)
         # make dir if it does not exist
@@ -131,7 +132,6 @@ def eval_actor(env, actor, device, episodes, seed, max_traj_len=1000,
         info = env.get_metrics()
         for step in range(max_traj_len):
             action = actor.act(observations, device)
-            # print(action)
             observations, raw = env.step(action)
             info = env.get_metrics()
             if video:
@@ -145,7 +145,7 @@ def eval_actor(env, actor, device, episodes, seed, max_traj_len=1000,
             goal_position = env.current_episode.goals[0].position
             distance = np.linalg.norm(np.array(position) - np.array(goal_position))
             if ignore_stop:
-                if info["distance_to_goal"] < success_distance:
+                if info["distance_to_goal"] < success_distance and not env.episode_over:
                     env.step(-1)
                     info = env.get_metrics()
 
