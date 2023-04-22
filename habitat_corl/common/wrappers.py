@@ -100,10 +100,10 @@ class ContinuousActionWrapper(ActionWrapper):
             return 3
 
     def step(self, action):
-        # target_angle = action * (2 * np.pi) - np.pi
-        current_heading = self._get_heading()
-        obs = self.env.step(self.action(action))
-        new_heading = self._get_heading()
+        if action == -1:
+            obs = self.env.step(0)
+        else:
+            obs = self.env.step(self.action(action))
 
         return obs
 
