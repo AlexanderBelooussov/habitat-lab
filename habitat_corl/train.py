@@ -180,6 +180,7 @@ def main():
         config.GROUP += f"-{group}"
     config.NAME += f"-seed{config.SEED}"
 
+    config.algorithm = algorithm
     config.CHECKPOINT_FOLDER += f"/{config.GROUP}/{config.NAME}/{config.SEED}"
 
     config.freeze()
