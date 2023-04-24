@@ -1,6 +1,8 @@
 # Inspired by:
 # 1. paper for SAC-N: https://arxiv.org/abs/2110.01548
 # 2. implementation: https://github.com/snu-mllab/EDAC
+# 3. SAC-Discrete: Soft Actor-Critic for Discrete Action Settings
+# 4. Implementation: https://github.com/p-christ/Deep-Reinforcement-Learning-Algorithms-with-PyTorch/blob/master/agents/actor_critic_agents/SAC_Discrete.py
 import argparse
 import faulthandler
 import math
@@ -88,19 +90,13 @@ class Actor(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
+            nn.Linear(hidden_dim, action_dim),  # changed
+            nn.Softmax()  # changed
         )
-        # with separate layers works better than with Linear(hidden_dim, 2 * action_dim)
-        self.mu = nn.Linear(hidden_dim, action_dim)
-        self.log_sigma = nn.Linear(hidden_dim, action_dim)
 
         # init as in the EDAC paper
         for layer in self.trunk[::2]:
             torch.nn.init.constant_(layer.bias, 0.1)
-
-        torch.nn.init.uniform_(self.mu.weight, -1e-3, 1e-3)
-        torch.nn.init.uniform_(self.mu.bias, -1e-3, 1e-3)
-        torch.nn.init.uniform_(self.log_sigma.weight, -1e-3, 1e-3)
-        torch.nn.init.uniform_(self.log_sigma.bias, -1e-3, 1e-3)
 
         self.action_dim = action_dim
         self.max_action = max_action
@@ -110,35 +106,27 @@ class Actor(nn.Module):
         state: torch.Tensor,
         deterministic: bool = False,
         need_log_prob: bool = False,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        hidden = self.trunk(state)
-        mu, log_sigma = self.mu(hidden), self.log_sigma(hidden)
-
-        # clipping params from EDAC paper, not as in SAC paper (-20, 2)
-        log_sigma = torch.clip(log_sigma, -5, 2)
-        policy_dist = Normal(mu, torch.exp(log_sigma))
-
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:  # changed
+        prob = self.trunk(state)
         if deterministic:
-            action = mu
+            action = prob.argmax(dim=-1)
         else:
-            action = policy_dist.rsample()
+            action = torch.distributions.Categorical(prob).sample()
 
-        tanh_action, log_prob = torch.tanh(action), None
-        if need_log_prob:
-            # change of variables formula (SAC paper, appendix C, eq 21)
-            log_prob = policy_dist.log_prob(action).sum(axis=-1)
-            log_prob = log_prob - torch.log(1 - tanh_action.pow(2) + 1e-6).sum(
-                axis=-1)
+        z = prob == 0.0
+        z = z.float() * 1e-8
 
-        return tanh_action * self.max_action, log_prob
+        log_prob = torch.log(prob + z)
+
+        return action, prob, log_prob
 
     @torch.no_grad()
-    def act(self, state: np.ndarray, device: str) -> np.ndarray:
+    def act(self, state: np.ndarray, device: str) -> np.ndarray:  # changed
         deterministic = not self.training
         state = torch.tensor(state, device=device, dtype=torch.float32)
-        action = self(state, deterministic=deterministic)[0].cpu().numpy()
-        # make sure norm = 1
-        action /= np.linalg.norm(action)
+        action, _, _ = self(state, deterministic=deterministic)
+        action = action.cpu().numpy()
+
         return action
 
 
@@ -149,13 +137,13 @@ class VectorizedCritic(nn.Module):
     ):
         super().__init__()
         self.critic = nn.Sequential(
-            VectorizedLinear(state_dim + action_dim, hidden_dim, num_critics),
+            VectorizedLinear(state_dim, hidden_dim, num_critics),  # changed
             nn.ReLU(),
             VectorizedLinear(hidden_dim, hidden_dim, num_critics),
             nn.ReLU(),
             VectorizedLinear(hidden_dim, hidden_dim, num_critics),
             nn.ReLU(),
-            VectorizedLinear(hidden_dim, 1, num_critics),
+            VectorizedLinear(hidden_dim, action_dim, num_critics),  # changed
         )
         # init as in the EDAC paper
         for layer in self.critic[::2]:
@@ -166,16 +154,13 @@ class VectorizedCritic(nn.Module):
 
         self.num_critics = num_critics
 
-    def forward(self, state: torch.Tensor,
-                action: torch.Tensor) -> torch.Tensor:
-        # [batch_size, state_dim + action_dim]
-        state_action = torch.cat([state, action], dim=-1)
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
         # [num_critics, batch_size, state_dim + action_dim]
-        state_action = state_action.unsqueeze(0).repeat_interleave(
+        state = state.unsqueeze(0).repeat_interleave(
             self.num_critics, dim=0
         )
         # [num_critics, batch_size]
-        q_values = self.critic(state_action).squeeze(-1)
+        q_values = self.critic(state).squeeze(-1)
         return q_values
 
 
@@ -215,17 +200,22 @@ class SACN:
 
     def _alpha_loss(self, state: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
-            action, action_log_prob = self.actor(state, need_log_prob=True)
+            action, action_prob, action_log_prob = self.actor(
+                state,
+                need_log_prob=True
+            )
 
-        loss = (-self.log_alpha * (
-            action_log_prob + self.target_entropy)).mean()
+        term2 = (-self.log_alpha * (
+            action_log_prob + self.target_entropy))
+        loss = (action_prob * term2).sum(dim=-1).mean()  # changed
 
         return loss
 
     def _actor_loss(self, state: torch.Tensor) -> Tuple[
         torch.Tensor, float, float]:
-        action, action_log_prob = self.actor(state, need_log_prob=True)
-        q_value_dist = self.critic(state, action)
+        action, action_prob, action_log_prob = self.actor(state,
+                                                          need_log_prob=True)
+        q_value_dist = self.critic(state)
         assert q_value_dist.shape[0] == self.critic.num_critics
         q_value_min = q_value_dist.min(0).values
         # needed for logging
@@ -233,7 +223,8 @@ class SACN:
         batch_entropy = -action_log_prob.mean().item()
 
         assert action_log_prob.shape == q_value_min.shape
-        loss = (self.alpha * action_log_prob - q_value_min).mean()
+        inside = self.alpha * action_log_prob - q_value_min  # changed
+        loss = (action_prob * inside).sum(dim=-1).mean()  # changed
 
         return loss, batch_entropy, q_value_std
 
@@ -246,17 +237,27 @@ class SACN:
         done: torch.Tensor,
     ) -> torch.Tensor:
         with torch.no_grad():
-            next_action, next_action_log_prob = self.actor(
+            next_action, next_action_prob, next_action_log_prob = self.actor(
                 next_state, need_log_prob=True
             )
-            q_next = self.target_critic(next_state, next_action).min(0).values
-            q_next = q_next - self.alpha * next_action_log_prob
-            assert q_next.unsqueeze(-1).shape == done.shape == reward.shape
-            q_target = reward + self.gamma * (1 - done) * q_next.unsqueeze(-1)
+            q_next = self.target_critic(next_state)
+            min_qf_next_target = \
+                next_action_prob * (
+                    torch.min(q_next, dim=0)[0] -
+                    self.alpha * next_action_log_prob
+                )  # changed
+            q_next = min_qf_next_target.sum(dim=1).unsqueeze(-1)
+            assert q_next.shape == done.shape == reward.shape
+            q_target = reward + self.gamma * (1 - done) * q_next
 
-        q_values = self.critic(state, action)
+        q_values = self.critic(state)
+        # choose q_values for actions
+        reshaped = action.view(1, -1, 1).repeat_interleave(
+            self.critic.num_critics, dim=0
+        )  # changed
+        q_values = q_values.gather(2, reshaped.long()).squeeze(-1)  # changed
         # [ensemble_size, batch_size] - [1, batch_size]
-        loss = ((q_values - q_target.view(1, -1)) ** 2).mean(dim=1).sum(dim=0)
+        loss = ((q_values - q_target.view(1, -1)) ** 2).mean(dim=1).sum(dim=0)  # unchanged
 
         return loss
 
@@ -294,12 +295,6 @@ class SACN:
             soft_update(self.target_critic, self.critic, tau=self.tau)
             # for logging, Q-ensemble std estimate with the random actions:
             # a ~ U[-max_action, max_action]
-            max_action = self.actor.max_action
-            random_actions = -max_action + 2 * max_action * torch.rand_like(
-                action)
-
-            q_random_std = self.critic(state, random_actions).std(
-                0).mean().item()
 
         update_info = {
             "alpha_loss": alpha_loss.item(),
@@ -308,7 +303,6 @@ class SACN:
             "batch_entropy": actor_batch_entropy,
             "alpha": self.alpha.item(),
             "q_policy_std": q_policy_std,
-            "q_random_std": q_random_std,
         }
         return update_info
 
@@ -374,13 +368,12 @@ def train(config):
         state_mean=mean_std["used"][0],
         state_std=mean_std["used"][1],
         used_inputs=config.MODEL.used_inputs,
-        continuous=True,
+        continuous=False,
         ignore_stop=config.RL.SAC_N.ignore_stop,
         turn_angle=config.TASK_CONFIG.SIMULATOR.TURN_ANGLE,
     ) as env:
         state_dim = get_input_dims(config)
-        action_dim = 2
-        # action_dim = env.action_space.n
+        action_dim = env.action_space.n
 
         train_episodes, eval_episodes = train_eval_split(
             env=env,
@@ -440,7 +433,8 @@ def train(config):
             datasets=[f"state_{x}" for x in config.MODEL.used_inputs] + \
                      [f"next_state_{x}" for x in config.MODEL.used_inputs] + \
                      ["action", "reward", "done"],
-            continuous=True,
+            ignore_stop=config.RL.SAC_N.ignore_stop,
+            continuous=False,
             single_goal=get_goal(config.RL.SAC_N, eval_episodes)
         )
         for epoch in trange(config.RL.SAC_N.num_epochs, desc="Training"):

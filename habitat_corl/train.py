@@ -2,6 +2,7 @@ import argparse
 
 import torch
 
+import habitat_corl.sac_n_discrete
 import habitat_corl.sac_n
 import habitat_corl.dt
 import habitat_corl.any_percent_bc
@@ -42,7 +43,7 @@ def main():
         type=str,
         default="sacn",
         choices=["sacn", "dt", "bc", "td3_bc", "sac_n", "td3bc", "bc_10",
-                 "bc10", "iql", "edac"],
+                 "bc10", "iql", "edac", "sacnd", "sacn_d"],
         help="Algorithm to use",
     )
     parser.add_argument(
@@ -137,6 +138,12 @@ def main():
         config = get_config(config, [])
         config.defrost()
         algo_config = config.RL.EDAC
+    elif algorithm == "sacnd":
+        config = "habitat_corl/configs/sacnd_pointnav.yaml"
+        config = get_config(config, [])
+        config.defrost()
+        algo_config = config.RL.SAC_N
+        algo_config.continuous = False
     else:
         raise ValueError("Invalid algorithm/task combination")
 
@@ -188,6 +195,8 @@ def main():
 
     if algorithm == "sacn":
         habitat_corl.sac_n.train(config)
+    elif algorithm == "sacnd":
+        habitat_corl.sac_n_discrete.train(config)
     elif algorithm == "dt":
         habitat_corl.dt.train(config)
     elif algorithm == "bc" or algorithm == "bc10":

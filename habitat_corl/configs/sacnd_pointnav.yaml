@@ -1,0 +1,60 @@
+# Note:  Hyperparameters have been changed slightly from
+# the paper to allow for things to easily run on 1 GPU
+
+BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_medium.yaml"
+#BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_small.yaml"
+ENV_NAME: "NavRLEnv"
+SIMULATOR_GPU_ID: 0
+TORCH_GPU_ID: 0
+#VIDEO_OPTION: []
+VIDEO_OPTION: ["disk"]  # Can be uncommented to generate videos.
+TENSORBOARD_DIR: "tb"
+VIDEO_DIR: "video_dir"
+TEST_EPISODE_COUNT: -1  # Evaluate on all episodes if -1
+EVAL_CKPT_PATH_DIR: "data/new_checkpoints/sac_n"
+NUM_PROCESSES: 1
+SENSORS: ["DEPTH_SENSOR"]
+CHECKPOINT_FOLDER: "data/new_checkpoints/sac_n"
+SEED:  1  # Sets Gym, PyTorch and Numpy seeds
+
+RL:
+  POLICY:
+    name: "PointNavResNetPolicy"
+  SAC_N:
+    hidden_dim: 256
+    num_critics: 25
+    gamma: 0.99
+    tau: 0.005
+    actor_learning_rate: 0.0003
+    critic_learning_rate: 0.0003
+    alpha_learning_rate: 0.0003
+    max_action: 1.0
+    # training params
+    buffer_size: 1_000_000
+    batch_size: 256
+    num_epochs: 1000
+    num_updates_on_epoch: 1000
+    normalize_reward: False
+    # evaluation params
+    eval_episodes: 100
+    eval_every: 5
+    # general params
+    deterministic_torch: False
+    log_every: 100
+    load_full_dataset: True
+    ignore_stop: True
+    single_goal: True
+    # debug
+#    num_updates_on_epoch: 10
+#    eval_every: 1
+
+# Wandb logging
+PROJECT: "habitat"
+GROUP: "SingleGoal"
+NAME: "SAC-N-D"
+WANDB_KEY: "88503bf83ff0a806be0ebc012f36e98fb193348a"
+
+MODEL:
+  # selecting inputs to use
+#  used_inputs: ["position", "heading_vec", "goal_position"]
+  used_inputs: ["position", "heading_vec"]
