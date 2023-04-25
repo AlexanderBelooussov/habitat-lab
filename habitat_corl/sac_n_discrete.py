@@ -190,7 +190,8 @@ class SACN:
         self.gamma = gamma
 
         # adaptive alpha setup
-        self.target_entropy = -float(self.actor.action_dim)
+        # self.target_entropy = -float(self.actor.action_dim)
+        self.target_entropy = -np.log((1/self.actor.action_dim)) * 0.98
         self.log_alpha = torch.tensor(
             [0.0], dtype=torch.float32, device=self.device, requires_grad=True
         )
@@ -207,9 +208,10 @@ class SACN:
 
         term2 = (-self.log_alpha * (
             action_log_prob + self.target_entropy))
-        loss = (action_prob * term2).sum(dim=-1).mean()  # changed
+        loss1 = (action_prob * term2).sum(dim=-1).mean()  # changed
+        loss2 = term2.mean()
 
-        return loss
+        return loss2
 
     def _actor_loss(self, state: torch.Tensor) -> Tuple[
         torch.Tensor, float, float]:
