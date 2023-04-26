@@ -471,7 +471,7 @@ def train(config):
                     # video=True,
                     video=epoch == config.RL.SAC_N.num_epochs - 1,
                     video_dir=config.VIDEO_DIR,
-                    video_prefix="sac_n/sac_n",
+                    video_prefix="sac_n_d/sac_n_d",
                     success_distance=config.TASK_CONFIG.TASK.SUCCESS_DISTANCE,
                     ignore_stop=config.RL.SAC_N.ignore_stop,
                 )

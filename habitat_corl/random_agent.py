@@ -47,7 +47,6 @@ def train(config):
     algo_config = config.RL.RANDOM
     task_config = config.TASK_CONFIG
     set_seed(config.SEED)
-    wandb_init(config)
 
     with wrap_env(
         habitat.Env(config=task_config),
@@ -87,7 +86,7 @@ def train(config):
             used_inputs=config.MODEL.used_inputs,
             video=True,
             video_dir=config.VIDEO_DIR,
-            video_prefix="td3_bc/td3_bc",
+            video_prefix="random/random",
             success_distance=task_config.TASK.SUCCESS_DISTANCE,
             ignore_stop=algo_config.ignore_stop,
         )
@@ -99,14 +98,6 @@ def train(config):
         for key in eval_scores:
             print(f"{key}: {np.mean(eval_scores[key])}")
         print("---------------------------------------")
-        for key in eval_scores:
-            wandb.log(
-                {
-                    f"eval/{key}_mean": np.mean(eval_scores[key]),
-                    f"eval/{key}_std": np.std(eval_scores[key])
-                },
-                step=0,
-            )
 
         wandb.finish()
 

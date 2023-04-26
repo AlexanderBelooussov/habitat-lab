@@ -7,8 +7,10 @@ import habitat_corl.sac_n
 import habitat_corl.dt
 import habitat_corl.any_percent_bc
 import habitat_corl.td3_bc
+import habitat_corl.td3_bc_discrete
 import habitat_corl.iql
 import habitat_corl.edac
+import habitat_corl.random_agent
 from habitat_baselines.config.default import get_config
 from habitat_corl.shortest_path_dataset import register_new_sensors
 
@@ -43,7 +45,8 @@ def main():
         type=str,
         default="sacn",
         choices=["sacn", "dt", "bc", "td3_bc", "sac_n", "td3bc", "bc_10",
-                 "bc10", "iql", "edac", "sacnd", "sacn_d"],
+                 "bc10", "iql", "edac", "sacnd", "sacn_d", "td3bcd",
+                 "td3bc_d", "random"],
         help="Algorithm to use",
     )
     parser.add_argument(
@@ -128,6 +131,12 @@ def main():
         config = get_config(config, [])
         config.defrost()
         algo_config = config.RL.TD3_BC
+        algo_config.continuous = False
+    elif algorithm == "td3bcd":
+        config = "habitat_corl/configs/td3_bc_d_pointnav.yaml"
+        config = get_config(config, [])
+        config.defrost()
+        algo_config = config.RL.TD3_BC
     elif algorithm == "iql":
         config = "habitat_corl/configs/iql_pointnav.yaml"
         config = get_config(config, [])
@@ -144,6 +153,11 @@ def main():
         config.defrost()
         algo_config = config.RL.SAC_N
         algo_config.continuous = False
+    elif algorithm == "random":
+        config = "habitat_corl/configs/random_pointnav.yaml"
+        config = get_config(config, [])
+        config.defrost()
+        algo_config = config.RL.RANDOM
     else:
         raise ValueError("Invalid algorithm/task combination")
 
@@ -177,7 +191,7 @@ def main():
         config.TASK_CONFIG.DATASET.WEB_DATASET_PATH = f"data/web_datasets/web_dataset_{scene}.hdf5"
 
     if scene == "debug":
-        algo_config.eval_episodes = 10
+        algo_config.eval_episodes = 100
     else:
         algo_config.eval_episodes = 100
 
@@ -203,10 +217,14 @@ def main():
         habitat_corl.any_percent_bc.train(config)
     elif algorithm == "td3bc":
         habitat_corl.td3_bc.train(config)
+    elif algorithm == "td3bcd":
+        habitat_corl.td3_bc_discrete.train(config)
     elif algorithm == "iql":
         habitat_corl.iql.train(config)
     elif algorithm == "edac":
         habitat_corl.edac.train(config)
+    elif algorithm == "random":
+        habitat_corl.random_agent.train(config)
     else:
         raise ValueError("Invalid algorithm")
 

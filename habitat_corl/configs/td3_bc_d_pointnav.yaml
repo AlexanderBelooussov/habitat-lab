@@ -3,6 +3,7 @@
 
 BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_medium.yaml"
 #BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_small.yaml"
+TRAINER_NAME: "bc"
 ENV_NAME: "NavRLEnv"
 SIMULATOR_GPU_ID: 0
 TORCH_GPU_ID: 0
@@ -11,47 +12,46 @@ VIDEO_OPTION: ["disk"]  # Can be uncommented to generate videos.
 TENSORBOARD_DIR: "tb"
 VIDEO_DIR: "video_dir"
 TEST_EPISODE_COUNT: -1  # Evaluate on all episodes if -1
-EVAL_CKPT_PATH_DIR: "data/new_checkpoints/sac_n_d"
+EVAL_CKPT_PATH_DIR: "data/new_checkpoints/td3_bc_d"
 NUM_PROCESSES: 1
 SENSORS: ["DEPTH_SENSOR"]
-CHECKPOINT_FOLDER: "data/new_checkpoints/sac_n_d"
-SEED:  1  # Sets Gym, PyTorch and Numpy seeds
+CHECKPOINT_FOLDER: "data/new_checkpoints/td3_bc_d"
+NUM_UPDATES: 1_000_000
+LOG_INTERVAL: 25
+CHECKPOINT_INTERVAL: 2000
+SEED:  0  # Sets Gym, PyTorch and Numpy seeds
 
 RL:
   POLICY:
     name: "PointNavResNetPolicy"
-  SAC_N:
-    hidden_dim: 256
-    num_critics: 25
-    gamma: 0.99
-    tau: 0.005
-    actor_learning_rate: 0.0003
-    critic_learning_rate: 0.0003
-    alpha_learning_rate: 0.0003
-    max_action: 1.0
-    # training params
-    buffer_size: 1_000_000
+  TD3_BC:
+    alpha: 2.5
     batch_size: 256
-    num_epochs: 1000
-    num_updates_on_epoch: 1000
-    normalize_reward: False
-    # evaluation params
+    buffer_size: 10000000
+    device: cuda
+    discount: 0.99
+    eval_freq: 5000
+    expl_noise: 0.1
+    load_model: ''
+    max_timesteps: 1000000
     eval_episodes: 100
-    eval_every: 5
-    # general params
-    deterministic_torch: False
-    log_every: 100
+    noise_clip: 0.5
+    normalize: true
+    normalize_reward: false
+    policy_freq: 2
+    policy_noise: 0.2
+    seed: 0
+    tau: 0.005
+    learning_rate: 0.0003
+    # other params
     load_full_dataset: True
     ignore_stop: True
-    single_goal: True
-    # debug
-#    num_updates_on_epoch: 10
-#    eval_every: 1
+    continuous: False
 
 # Wandb logging
 PROJECT: "habitat"
 GROUP: "SingleGoal"
-NAME: "SAC-N-D"
+NAME: "TD3_BC_Discrete"
 WANDB_KEY: "88503bf83ff0a806be0ebc012f36e98fb193348a"
 
 MODEL:
