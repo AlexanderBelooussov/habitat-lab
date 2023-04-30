@@ -436,7 +436,7 @@ def eval_rollout(
         episode_len += 1
 
         if ignore_stop:
-            if info["distance_to_goal"] < success_distance:
+            if info["distance_to_goal"] < success_distance and not env.episode_over:
                 env.step(-1)
                 info = env.get_metrics()
         if env.episode_over:
