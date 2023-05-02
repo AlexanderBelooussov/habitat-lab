@@ -229,6 +229,40 @@ class TD3_BC:  # noqa
         self.total_it = state_dict["total_it"]
 
 
+def make_trainer(algo_config, state_dim, action_dim, device, max_action=1.0):
+    actor = Actor(state_dim, action_dim, max_action).to(device)
+    actor_optimizer = torch.optim.Adam(actor.parameters(),
+                                       lr=algo_config.learning_rate)
+
+    critic_1 = Critic(state_dim, action_dim).to(device)
+    critic_1_optimizer = torch.optim.Adam(critic_1.parameters(),
+                                          lr=algo_config.learning_rate)
+    critic_2 = Critic(state_dim, action_dim).to(device)
+    critic_2_optimizer = torch.optim.Adam(critic_2.parameters(),
+                                          lr=algo_config.learning_rate)
+
+    kwargs = {
+        "max_action": max_action,
+        "actor": actor,
+        "actor_optimizer": actor_optimizer,
+        "critic_1": critic_1,
+        "critic_1_optimizer": critic_1_optimizer,
+        "critic_2": critic_2,
+        "critic_2_optimizer": critic_2_optimizer,
+        "discount": algo_config.discount,
+        "tau": algo_config.tau,
+        "device": device,
+        # TD3
+        "policy_noise": algo_config.policy_noise * max_action,
+        "noise_clip": algo_config.noise_clip * max_action,
+        "policy_freq": algo_config.policy_freq,
+        # TD3 + BC
+        "alpha": algo_config.alpha,
+    }
+    # Initialize actor
+    trainer = TD3_BC(**kwargs)
+    return trainer
+
 def train(config):
     algo_config = config.RL.TD3_BC
     task_config = config.TASK_CONFIG

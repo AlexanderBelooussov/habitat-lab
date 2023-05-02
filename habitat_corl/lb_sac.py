@@ -1,26 +1,23 @@
 # Inspired by:
-# 1. paper for SAC-N: https://arxiv.org/abs/2110.01548
-# 2. implementation: https://github.com/snu-mllab/EDAC
+# 1. paper for LB-SAC: https://arxiv.org/abs/2211.11092
+# 2. implementation: https://github.com/tinkoff-ai/lb-sac
 import argparse
 import faulthandler
+from typing import Any, Dict, List, Optional, Tuple, Union
+from copy import deepcopy
+from dataclasses import asdict, dataclass
 import math
 import os
 import random
 import uuid
-from copy import deepcopy
-# The only difference from the original implementation:
-# default pytorch weight initialization,
-# without custom rlkit init & uniform init for last layers.
-from typing import Any, Dict, List, Optional, Tuple
 
 import gym
 import numpy as np
 import torch
-import torch.nn as nn
-import wandb
 from torch.distributions import Normal
-from tqdm import tqdm
+import torch.nn as nn
 from tqdm import trange
+import wandb
 
 import habitat
 from habitat_baselines.config.default import get_config
@@ -75,8 +72,12 @@ class VectorizedLinear(nn.Module):
 
 class Actor(nn.Module):
     def __init__(
-        self, state_dim: int, action_dim: int, hidden_dim: int,
-        max_action: float = 1.0
+        self,
+        state_dim: int,
+        action_dim: int,
+        hidden_dim: int,
+        edac_init: bool,
+        max_action: float = 1.0,
     ):
         super().__init__()
         self.trunk = nn.Sequential(
@@ -91,14 +92,15 @@ class Actor(nn.Module):
         self.mu = nn.Linear(hidden_dim, action_dim)
         self.log_sigma = nn.Linear(hidden_dim, action_dim)
 
-        # init as in the EDAC paper
-        for layer in self.trunk[::2]:
-            torch.nn.init.constant_(layer.bias, 0.1)
+        if edac_init:
+            # init as in the EDAC paper
+            for layer in self.trunk[::2]:
+                torch.nn.init.constant_(layer.bias, 0.1)
 
-        torch.nn.init.uniform_(self.mu.weight, -1e-3, 1e-3)
-        torch.nn.init.uniform_(self.mu.bias, -1e-3, 1e-3)
-        torch.nn.init.uniform_(self.log_sigma.weight, -1e-3, 1e-3)
-        torch.nn.init.uniform_(self.log_sigma.bias, -1e-3, 1e-3)
+            torch.nn.init.uniform_(self.mu.weight, -1e-3, 1e-3)
+            torch.nn.init.uniform_(self.mu.bias, -1e-3, 1e-3)
+            torch.nn.init.uniform_(self.log_sigma.weight, -1e-3, 1e-3)
+            torch.nn.init.uniform_(self.log_sigma.bias, -1e-3, 1e-3)
 
         self.action_dim = action_dim
         self.max_action = max_action
@@ -135,32 +137,39 @@ class Actor(nn.Module):
         deterministic = not self.training
         state = torch.tensor(state, device=device, dtype=torch.float32)
         action = self(state, deterministic=deterministic)[0].cpu().numpy()
-        # make sure norm = 1
-        action /= np.linalg.norm(action)
         return action
 
 
 class VectorizedCritic(nn.Module):
     def __init__(
-        self, state_dim: int, action_dim: int, hidden_dim: int,
-        num_critics: int
+        self,
+        state_dim: int,
+        action_dim: int,
+        hidden_dim: int,
+        num_critics: int,
+        layernorm: bool,
+        edac_init: bool,
     ):
         super().__init__()
         self.critic = nn.Sequential(
             VectorizedLinear(state_dim + action_dim, hidden_dim, num_critics),
+            nn.LayerNorm(hidden_dim) if layernorm else nn.Identity(),
             nn.ReLU(),
             VectorizedLinear(hidden_dim, hidden_dim, num_critics),
+            nn.LayerNorm(hidden_dim) if layernorm else nn.Identity(),
             nn.ReLU(),
             VectorizedLinear(hidden_dim, hidden_dim, num_critics),
+            nn.LayerNorm(hidden_dim) if layernorm else nn.Identity(),
             nn.ReLU(),
             VectorizedLinear(hidden_dim, 1, num_critics),
         )
-        # init as in the EDAC paper
-        for layer in self.critic[::2]:
-            torch.nn.init.constant_(layer.bias, 0.1)
+        if edac_init:
+            # init as in the EDAC paper
+            for layer in self.critic[::3]:
+                torch.nn.init.constant_(layer.bias, 0.1)
 
-        torch.nn.init.uniform_(self.critic[-1].weight, -3e-3, 3e-3)
-        torch.nn.init.uniform_(self.critic[-1].bias, -3e-3, 3e-3)
+            torch.nn.init.uniform_(self.critic[-1].weight, -3e-3, 3e-3)
+            torch.nn.init.uniform_(self.critic[-1].bias, -3e-3, 3e-3)
 
         self.num_critics = num_critics
 
@@ -177,7 +186,7 @@ class VectorizedCritic(nn.Module):
         return q_values
 
 
-class SACN:
+class LBSAC:
     def __init__(
         self,
         actor: Actor,
@@ -249,20 +258,23 @@ class SACN:
             )
             q_next = self.target_critic(next_state, next_action).min(0).values
             q_next = q_next - self.alpha * next_action_log_prob
+
             assert q_next.unsqueeze(-1).shape == done.shape == reward.shape
             q_target = reward + self.gamma * (1 - done) * q_next.unsqueeze(-1)
 
         q_values = self.critic(state, action)
         # [ensemble_size, batch_size] - [1, batch_size]
-        loss = ((q_values - q_target.view(1, -1)) ** 2).mean(dim=1).sum(dim=0)
+        # loss = ((q_values - q_target.view(1, -1)) ** 2).mean(dim=1).sum(dim=0)
+        loss = ((q_values - q_target.view(1, -1)) ** 2).mean()
 
         return loss
 
-    def update(self, batch: ReplayBuffer, used_inputs: List[str]) -> Dict[
-        str, float]:
-        state, action, reward, next_state, done = batch.to_tensor(self.device,
-                                                                  used_inputs,
-                                                                  continuous_actions=True)
+    def update(self, batch: ReplayBuffer, used_inputs: List[str]) -> Dict[str, float]:
+        state, action, reward, next_state, done = batch.to_tensor(
+            self.device,
+            used_inputs,
+            continuous_actions=True
+        )
         # Usually updates are done in the following order: critic -> actor -> alpha
         # But we found that EDAC paper uses reverse (which gives better results)
 
@@ -332,93 +344,66 @@ class SACN:
         self.log_alpha.data[0] = state_dict["log_alpha"]
         self.alpha = self.log_alpha.exp().detach()
 
-
-def return_reward_range(dataset, max_episode_steps):
-    returns, lengths = [], []
-    ep_ret, ep_len = 0.0, 0
-    for r, d in zip(dataset["rewards"], dataset["terminals"]):
-        ep_ret += float(r)
-        ep_len += 1
-        if d or ep_len == max_episode_steps:
-            returns.append(ep_ret)
-            lengths.append(ep_len)
-            ep_ret, ep_len = 0.0, 0
-    lengths.append(ep_len)  # but still keep track of number of steps
-    assert sum(lengths) == len(dataset["rewards"])
-    return min(returns), max(returns)
-
-
-def modify_reward(dataset, env_name, max_episode_steps=1000):
-    if any(s in env_name for s in ("halfcheetah", "hopper", "walker2d")):
-        min_ret, max_ret = return_reward_range(dataset, max_episode_steps)
-        dataset["rewards"] /= max_ret - min_ret
-        dataset["rewards"] *= max_episode_steps
-    elif "antmaze" in env_name:
-        dataset["rewards"] -= 1.0
-
-
-def make_trainer(algo_config, state_dim, action_dim, device, **kwargs):
-    # Actor & Critic setup
-    actor = Actor(state_dim, action_dim, algo_config.hidden_dim,
-                  algo_config.max_action)
-    actor.to(device)
-    actor_optimizer = torch.optim.Adam(actor.parameters(),
-                                       lr=algo_config.actor_learning_rate)
-    critic = VectorizedCritic(
-        state_dim,
-        action_dim,
-        algo_config.hidden_dim,
-        algo_config.num_critics
-    )
-    critic.to(device)
-    critic_optimizer = torch.optim.Adam(
-        critic.parameters(), lr=algo_config.critic_learning_rate
-    )
-
-    trainer = SACN(
-        actor=actor,
-        actor_optimizer=actor_optimizer,
-        critic=critic,
-        critic_optimizer=critic_optimizer,
-        gamma=algo_config.gamma,
-        tau=algo_config.tau,
-        alpha_learning_rate=algo_config.alpha_learning_rate,
-        device=device,
-    )
-    return trainer
-
 def train(config):
+    algo_config = config.RL.LB_SAC
+    task_config = config.TASK_CONFIG
     set_seed(config.SEED,
-             deterministic_torch=config.RL.SAC_N.deterministic_torch)
+             deterministic_torch=algo_config.deterministic_torch)
     wandb_init(config)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     mean_std = calc_mean_std(config.TASK_CONFIG,
                              used_inputs=config.MODEL.used_inputs)
 
-    # data, evaluation, env setup
     with wrap_env(
         habitat.Env(config=config.TASK_CONFIG),
         state_mean=mean_std["used"][0],
         state_std=mean_std["used"][1],
         used_inputs=config.MODEL.used_inputs,
         continuous=True,
-        ignore_stop=config.RL.SAC_N.ignore_stop,
-        turn_angle=config.TASK_CONFIG.SIMULATOR.TURN_ANGLE,
+        ignore_stop=algo_config.ignore_stop,
+        turn_angle=task_config.SIMULATOR.TURN_ANGLE,
     ) as env:
         state_dim = get_input_dims(config)
         action_dim = env.action_space.shape[0]
-        # action_dim = env.action_space.n
 
         train_episodes, eval_episodes = train_eval_split(
             env=env,
             config=config,
-            n_eval_episodes=config.RL.SAC_N.eval_episodes,
-            single_goal=config.RL.SAC_N.single_goal,
+            n_eval_episodes=algo_config.eval_episodes,
+            single_goal=algo_config.single_goal,
+        )
+        # Actor & Critic setup
+        actor = Actor(
+            state_dim, action_dim, algo_config.hidden_dim, algo_config.edac_init,
+            algo_config.max_action
+        )
+        actor.to(device)
+        actor_optimizer = torch.optim.Adam(actor.parameters(),
+                                           lr=algo_config.actor_learning_rate)
+        critic = VectorizedCritic(
+            state_dim,
+            action_dim,
+            algo_config.hidden_dim,
+            algo_config.num_critics,
+            algo_config.critic_layernorm,
+            algo_config.edac_init,
+        )
+        critic.to(device)
+        critic_optimizer = torch.optim.Adam(
+            critic.parameters(), lr=algo_config.critic_learning_rate
         )
 
-        trainer = make_trainer(config.RL.SAC_N, state_dim, action_dim, device)
-
+        trainer = LBSAC(
+            actor=actor,
+            actor_optimizer=actor_optimizer,
+            critic=critic,
+            critic_optimizer=critic_optimizer,
+            gamma=algo_config.gamma,
+            tau=algo_config.tau,
+            alpha_learning_rate=algo_config.alpha_learning_rate,
+            device=device,
+        )
         wandb.watch(trainer.actor, log="all")
         wandb.watch(trainer.critic, log="all")
 
@@ -435,21 +420,21 @@ def train(config):
         evaluations = []
         batch_gen = batch_generator(
             config.TASK_CONFIG,
-            n_transitions=config.RL.SAC_N.batch_size,
+            n_transitions=algo_config.batch_size,
             groups=train_episodes,
             # use_full_dataset=False,
-            use_full_dataset=config.RL.SAC_N.load_full_dataset,
+            use_full_dataset=algo_config.load_full_dataset,
             # n_batches=config.RL.SAC_N.eval_every * config.RL.SAC_N.num_updates_on_epoch,
-            n_batches=config.RL.SAC_N.num_updates_on_epoch,
+            n_batches=algo_config.num_updates_on_epoch,
             datasets=[f"state_{x}" for x in config.MODEL.used_inputs] + \
                      [f"next_state_{x}" for x in config.MODEL.used_inputs] + \
                      ["action", "reward", "done"],
             continuous=True,
-            single_goal=get_goal(config.RL.SAC_N, eval_episodes)
+            single_goal=get_goal(algo_config, eval_episodes)
         )
-        for epoch in trange(config.RL.SAC_N.num_epochs, desc="Training"):
+        for epoch in trange(algo_config.num_epochs, desc="Training"):
             # training
-            for _ in trange(config.RL.SAC_N.num_updates_on_epoch, desc="Epoch",
+            for _ in trange(algo_config.num_updates_on_epoch, desc="Epoch",
                             leave=False):
                 batch = next(batch_gen)
                 batch.normalize_states(mean_std)
@@ -457,7 +442,7 @@ def train(config):
                 update_info = trainer.update(batch,
                                              used_inputs=config.MODEL.used_inputs)
 
-                if total_updates % config.RL.SAC_N.log_every == 0:
+                if total_updates % algo_config.log_every == 0:
                     wandb.log(
                         {"epoch": epoch, **update_info},
                         step=total_updates
@@ -466,9 +451,7 @@ def train(config):
                 total_updates += 1
 
             # evaluation
-            t = total_updates
-            if (epoch + 1) % config.RL.SAC_N.eval_every == 0 or epoch == config.RL.SAC_N.num_epochs - 1:
-                print(f"Time steps: {t + 1}")
+            if epoch % algo_config.eval_every == 0 or epoch == algo_config.num_epochs - 1:
                 eval_scores = eval_actor(
                     env,
                     actor,
@@ -476,18 +459,18 @@ def train(config):
                     episodes=eval_episodes,
                     seed=config.SEED,
                     used_inputs=config.MODEL.used_inputs,
-                    video=True,
-                    # video=epoch == config.RL.SAC_N.num_epochs - 1,
+                    # video=True,
+                    video=epoch == algo_config.num_epochs - 1,
                     video_dir=config.VIDEO_DIR,
-                    video_prefix="sac_n/sac_n",
-                    success_distance=config.TASK_CONFIG.TASK.SUCCESS_DISTANCE,
-                    ignore_stop=config.RL.SAC_N.ignore_stop,
+                    video_prefix="lb_sac/lb_sac",
+                    success_distance=task_config.TASK.SUCCESS_DISTANCE,
+                    ignore_stop=algo_config.ignore_stop,
                 )
                 eval_scores = remove_unreachable(eval_scores)
                 evaluations.append(eval_scores)
                 print("---------------------------------------")
                 print(
-                    f"Evaluation over {config.RL.SAC_N.eval_episodes} episodes: "
+                    f"Evaluation over {algo_config.eval_episodes} episodes: "
                 )
                 for key in eval_scores:
                     print(f"{key}: {np.mean(eval_scores[key])}")
@@ -506,13 +489,13 @@ def train(config):
                         step=total_updates,
                     )
 
-    wandb.finish()
+        wandb.finish()
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str,
-                        default="habitat_corl/configs/sacn_pointnav.yaml")
+                        default="habitat_corl/configs/lbsacn_pointnav.yaml")
     args = parser.parse_args()
 
     config = get_config(args.config)

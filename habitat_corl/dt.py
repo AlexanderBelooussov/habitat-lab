@@ -21,7 +21,7 @@ import wandb
 
 import habitat
 from habitat.utils.visualizations.utils import images_to_video, \
-    observations_to_image
+    observations_to_image, append_text_to_image
 from habitat_corl.common.utils import restructure_results, train_eval_split, \
     set_seed, wandb_init, remove_unreachable
 from habitat_corl.common.wrappers import wrap_env
@@ -377,6 +377,8 @@ def eval_rollout(
     success_distance=0.2,
 ) -> Tuple[float, float]:
     def make_videos(observations_list, output_prefix, ep_id):
+        for _ in range(300):
+            observations_list.append(observations_list[-1])
         prefix = output_prefix + "_{}".format(ep_id)
         # make dir if it does not exist
         os.makedirs(video_dir, exist_ok=True)
@@ -387,6 +389,14 @@ def eval_rollout(
             os.makedirs(dirs, exist_ok=True)
         images_to_video(observations_list, output_dir=video_dir,
                         video_name=prefix)
+
+    def make_frame(raw, info):
+        frame = observations_to_image(raw, info)
+        frame = append_text_to_image(
+            frame,
+            f"SPL: {info['spl']:.3f}, Soft-SPL: {info['softspl']:.3f}, DTG: {info['distance_to_goal']:.3f}",
+        )
+        return frame
 
     video_frames = []
     states = torch.zeros(
@@ -424,8 +434,10 @@ def eval_rollout(
         next_state, raw = env.step(predicted_action)
         info = env.get_metrics()
         if video:
-            frame = observations_to_image(raw, info)
-            video_frames.append(frame)
+            if "depth" not in raw and "rgb" not in raw:
+                video = False
+            else:
+                video_frames.append(make_frame(raw, info))
         reward = info["success"]
         # at step t, we predict a_t, get s_{t + 1}, r_{t + 1}
         actions[:, step] = torch.as_tensor(predicted_action)
@@ -439,6 +451,8 @@ def eval_rollout(
             if info["distance_to_goal"] < success_distance and not env.episode_over:
                 env.step(-1)
                 info = env.get_metrics()
+                if video:
+                    video_frames.append(make_frame(raw, info))
         if env.episode_over:
             break
 

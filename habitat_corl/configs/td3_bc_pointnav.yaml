@@ -46,6 +46,7 @@ RL:
     # other params
     load_full_dataset: True
     ignore_stop: True
+    continuous: True
 
 # Wandb logging
 PROJECT: "habitat"

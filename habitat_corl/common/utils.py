@@ -10,7 +10,7 @@ import wandb
 from tqdm import tqdm
 
 from habitat.utils.visualizations.utils import images_to_video, \
-    observations_to_image
+    observations_to_image, append_text_to_image
 from habitat_corl.shortest_path_dataset import get_stored_episodes
 
 
@@ -99,14 +99,18 @@ def wandb_init(config) -> None:
     print(f"=======================================")
 
 
-
 @torch.no_grad()
 def eval_actor(env, actor, device, episodes, seed, max_traj_len=1000,
                used_inputs=["pointgoal_with_gps_compass"], video=False,
                video_dir="demos", video_prefix="demo", ignore_stop=False,
                success_distance=0.2):
-    video=True
+    video = True
+
     def make_videos(observations_list, output_prefix, ep_id):
+        # repeat last observation to get clear last frame
+        for _ in range(300):
+            observations_list.append(observations_list[-1])
+
         prefix = output_prefix + "_{}".format(ep_id)
         # make dir if it does not exist
         os.makedirs(video_dir, exist_ok=True)
@@ -117,6 +121,14 @@ def eval_actor(env, actor, device, episodes, seed, max_traj_len=1000,
             os.makedirs(dirs, exist_ok=True)
         images_to_video(observations_list, output_dir=video_dir,
                         video_name=prefix)
+
+    def make_frame(raw, info):
+        frame = observations_to_image(raw, info)
+        frame = append_text_to_image(
+            frame,
+            f"SPL: {info['spl']:.3f}, Soft-SPL: {info['softspl']:.3f}, DtG: {info['distance_to_goal']:.3f}",
+        )
+        return frame
 
     # run the agent for n_episodes
     env_ptr = env
@@ -138,16 +150,18 @@ def eval_actor(env, actor, device, episodes, seed, max_traj_len=1000,
                 if "depth" not in raw and "rgb" not in raw:
                     video = False
                 else:
-                    frame = observations_to_image(raw, info)
-                    video_frames.append(frame)
+                    video_frames.append(make_frame(raw, info))
             # stop if close to goal
             # position = env.sim.get_agent_state().position.tolist()
             # goal_position = env.current_episode.goals[0].position
             # distance = np.linalg.norm(np.array(position) - np.array(goal_position))
             if ignore_stop:
-                if info["distance_to_goal"] < success_distance and not env.episode_over:
+                if info[
+                    "distance_to_goal"] < success_distance and not env.episode_over:
                     env.step(-1)
                     info = env.get_metrics()
+                    if video:
+                        video_frames.append(make_frame(raw, info))
 
             if env.episode_over:
                 break

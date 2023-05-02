@@ -1,0 +1,69 @@
+# Note:  Hyperparameters have been changed slightly from
+# the paper to allow for things to easily run on 1 GPU
+
+BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_medium.yaml"
+#BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_small.yaml"
+ENV_NAME: "NavRLEnv"
+SIMULATOR_GPU_ID: 0
+TORCH_GPU_ID: 0
+#VIDEO_OPTION: []
+VIDEO_OPTION: ["disk"]  # Can be uncommented to generate videos.
+TENSORBOARD_DIR: "tb"
+VIDEO_DIR: "video_dir"
+TEST_EPISODE_COUNT: -1  # Evaluate on all episodes if -1
+EVAL_CKPT_PATH_DIR: "data/new_checkpoints/cql"
+NUM_PROCESSES: 1
+SENSORS: ["DEPTH_SENSOR"]
+CHECKPOINT_FOLDER: "data/new_checkpoints/cql"
+SEED:  1  # Sets Gym, PyTorch and Numpy seeds
+
+RL:
+  POLICY:
+    name: "PointNavResNetPolicy"
+  CQL:
+    alpha_multiplier: 1.0
+    backup_entropy: false
+    batch_size: 256
+    bc_steps: 0
+    buffer_size: 10000000
+    checkpoints_path: null
+    cql_clip_diff_max: .inf
+    cql_clip_diff_min: -.inf
+    cql_importance_sample: true
+    cql_lagrange: true
+    cql_max_target_backup: false
+    cql_min_q_weight: 10.0
+    cql_n_actions: 10
+    cql_target_action_gap: 5.0
+    cql_temp: 1.0
+    discount: 0.99
+    eval_freq: 5000
+    load_model: ''
+    max_timesteps: 1000000
+    n_episodes: 100
+    normalize: true
+    normalize_reward: false
+    orthogonal_init: true
+    policy_lr: 3.0e-05
+    qf_lr: 0.0003
+    soft_target_update_rate: 0.005
+    target_update_period: 1
+    use_automatic_entropy_tuning: true
+    # general params
+    deterministic_torch: False
+    log_every: 100
+    load_full_dataset: True
+    ignore_stop: True
+    single_goal: True
+    continuous: True
+
+# Wandb logging
+PROJECT: "habitat"
+GROUP: "SingleGoal"
+NAME: "CQL"
+WANDB_KEY: "88503bf83ff0a806be0ebc012f36e98fb193348a"
+
+MODEL:
+  # selecting inputs to use
+#  used_inputs: ["position", "heading_vec", "goal_position"]
+  used_inputs: ["position", "heading_vec"]

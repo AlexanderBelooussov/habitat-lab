@@ -11,6 +11,8 @@ import habitat_corl.td3_bc_discrete
 import habitat_corl.iql
 import habitat_corl.edac
 import habitat_corl.random_agent
+import habitat_corl.cql
+import habitat_corl.lb_sac
 from habitat_baselines.config.default import get_config
 from habitat_corl.shortest_path_dataset import register_new_sensors
 
@@ -46,7 +48,7 @@ def main():
         default="sacn",
         choices=["sacn", "dt", "bc", "td3_bc", "sac_n", "td3bc", "bc_10",
                  "bc10", "iql", "edac", "sacnd", "sacn_d", "td3bcd",
-                 "td3bc_d", "random"],
+                 "td3bc_d", "random", "cql", "cql_d", "cqld", "lb_sac", "lbsac"],
         help="Algorithm to use",
     )
     parser.add_argument(
@@ -131,12 +133,12 @@ def main():
         config = get_config(config, [])
         config.defrost()
         algo_config = config.RL.TD3_BC
-        algo_config.continuous = False
     elif algorithm == "td3bcd":
         config = "habitat_corl/configs/td3_bc_d_pointnav.yaml"
         config = get_config(config, [])
         config.defrost()
         algo_config = config.RL.TD3_BC
+        algo_config.continuous = False
     elif algorithm == "iql":
         config = "habitat_corl/configs/iql_pointnav.yaml"
         config = get_config(config, [])
@@ -158,6 +160,21 @@ def main():
         config = get_config(config, [])
         config.defrost()
         algo_config = config.RL.RANDOM
+    elif algorithm == "cql":
+        config = "habitat_corl/configs/cql_pointnav.yaml"
+        config = get_config(config, [])
+        config.defrost()
+        algo_config = config.RL.CQL
+    # elif algorithm == "cqld":
+    #     config = "habitat_corl/configs/cql_d_pointnav.yaml"
+    #     config = get_config(config, [])
+    #     config.defrost()
+    #     algo_config = config.RL.CQL
+    elif algorithm == "lbsac":
+        config = "habitat_corl/configs/lbsac_pointnav.yaml"
+        config = get_config(config, [])
+        config.defrost()
+        algo_config = config.RL.LB_SAC
     else:
         raise ValueError("Invalid algorithm/task combination")
 
@@ -225,6 +242,12 @@ def main():
         habitat_corl.edac.train(config)
     elif algorithm == "random":
         habitat_corl.random_agent.train(config)
+    elif algorithm == "cql":
+        habitat_corl.cql.train(config)
+    # elif algorithm == "cqld":
+    #     habitat_corl.cql_discrete.train(config)
+    elif algorithm == "lbsac":
+        habitat_corl.lb_sac.train(config)
     else:
         raise ValueError("Invalid algorithm")
 
