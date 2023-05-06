@@ -1,4 +1,4 @@
-BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_medium.yaml"
+BASE_TASK_CONFIG_PATH: "configs/tasks/pointnav_mp3d_depth.yaml"
 ENV_NAME: "NavRLEnv"
 SIMULATOR_GPU_ID: 0
 TORCH_GPU_ID: 0
@@ -43,3 +43,13 @@ WANDB_KEY: "88503bf83ff0a806be0ebc012f36e98fb193348a"
 MODEL:
   # selecting inputs to use
   used_inputs: ["position", "heading", "pointgoal"]
+  DEPTH_ENCODER:
+    cnn_type: "VlnResnetDepthEncoder"
+    output_size: 128
+    backbone: "resnet50"
+    trainable: False
+    ddppo_checkpoint: "data/ddppo-models/gibson-2plus-resnet50.pth"
+  STATE_ENCODER:
+    hidden_size: 2048
+    rnn_type: "GRU"
+    num_recurrent_layers: 2

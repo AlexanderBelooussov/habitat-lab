@@ -645,6 +645,61 @@ class ContinuousCQL:
         self.total_it = state_dict["total_it"]
 
 
+def init_trainer(algo_config, state_dim, action_dim, device, max_action, action_space_shape, **kwargs):
+    critic_1 = FullyConnectedQFunction(state_dim, action_dim,
+                                       algo_config.orthogonal_init).to(
+        device
+    )
+    critic_2 = FullyConnectedQFunction(state_dim, action_dim,
+                                       algo_config.orthogonal_init).to(
+        device
+    )
+    critic_1_optimizer = torch.optim.Adam(list(critic_1.parameters()),
+                                          algo_config.qf_lr)
+    critic_2_optimizer = torch.optim.Adam(list(critic_2.parameters()),
+                                          algo_config.qf_lr)
+
+    actor = TanhGaussianPolicy(
+        state_dim, action_dim, max_action,
+        orthogonal_init=algo_config.orthogonal_init
+    ).to(device)
+    actor_optimizer = torch.optim.Adam(actor.parameters(),
+                                       algo_config.policy_lr)
+
+    kwargs = {
+        "critic_1": critic_1,
+        "critic_2": critic_2,
+        "critic_1_optimizer": critic_1_optimizer,
+        "critic_2_optimizer": critic_2_optimizer,
+        "actor": actor,
+        "actor_optimizer": actor_optimizer,
+        "discount": algo_config.discount,
+        "soft_target_update_rate": algo_config.soft_target_update_rate,
+        "device": device,
+        # CQL
+        "target_entropy": -np.prod(action_space_shape).item(),
+        "alpha_multiplier": algo_config.alpha_multiplier,
+        "use_automatic_entropy_tuning": algo_config.use_automatic_entropy_tuning,
+        "backup_entropy": algo_config.backup_entropy,
+        "policy_lr": algo_config.policy_lr,
+        "qf_lr": algo_config.qf_lr,
+        "bc_steps": algo_config.bc_steps,
+        "target_update_period": algo_config.target_update_period,
+        "cql_n_actions": algo_config.cql_n_actions,
+        "cql_importance_sample": algo_config.cql_importance_sample,
+        "cql_lagrange": algo_config.cql_lagrange,
+        "cql_target_action_gap": algo_config.cql_target_action_gap,
+        "cql_temp": algo_config.cql_temp,
+        "cql_min_q_weight": algo_config.cql_min_q_weight,
+        "cql_max_target_backup": algo_config.cql_max_target_backup,
+        "cql_clip_diff_min": algo_config.cql_clip_diff_min,
+        "cql_clip_diff_max": algo_config.cql_clip_diff_max,
+    }
+
+    # Initialize actor
+    trainer = ContinuousCQL(**kwargs)
+    return trainer
+
 def train(config):
     algo_config = config.RL.CQL
     task_config = config.TASK_CONFIG
@@ -659,13 +714,14 @@ def train(config):
         habitat.Env(config=task_config),
         state_mean=mean_std["used"][0],
         state_std=mean_std["used"][1],
-        used_inputs=config.MODEL.used_inputs,
+        model_config=config.MODEL,
         continuous=algo_config.continuous,
         ignore_stop=algo_config.ignore_stop,
         turn_angle=task_config.SIMULATOR.TURN_ANGLE,
     ) as env:
         state_dim = get_input_dims(config)
         action_dim = env.action_space.shape[0]
+        action_space_shape = env.action_space.shape
 
         train_episodes, eval_episodes = train_eval_split(
             env=env,
@@ -701,63 +757,19 @@ def train(config):
         seed = config.SEED
         set_seed(seed, env)
 
-        critic_1 = FullyConnectedQFunction(state_dim, action_dim, algo_config.orthogonal_init).to(
-            device
-        )
-        critic_2 = FullyConnectedQFunction(state_dim, action_dim, algo_config.orthogonal_init).to(
-            device
-        )
-        critic_1_optimizer = torch.optim.Adam(list(critic_1.parameters()), algo_config.qf_lr)
-        critic_2_optimizer = torch.optim.Adam(list(critic_2.parameters()), algo_config.qf_lr)
-
-        actor = TanhGaussianPolicy(
-            state_dim, action_dim, max_action, orthogonal_init=algo_config.orthogonal_init
-        ).to(device)
-        actor_optimizer = torch.optim.Adam(actor.parameters(), algo_config.policy_lr)
-
-        kwargs = {
-            "critic_1": critic_1,
-            "critic_2": critic_2,
-            "critic_1_optimizer": critic_1_optimizer,
-            "critic_2_optimizer": critic_2_optimizer,
-            "actor": actor,
-            "actor_optimizer": actor_optimizer,
-            "discount": algo_config.discount,
-            "soft_target_update_rate": algo_config.soft_target_update_rate,
-            "device": device,
-            # CQL
-            "target_entropy": -np.prod(env.action_space.shape).item(),
-            "alpha_multiplier": algo_config.alpha_multiplier,
-            "use_automatic_entropy_tuning": algo_config.use_automatic_entropy_tuning,
-            "backup_entropy": algo_config.backup_entropy,
-            "policy_lr": algo_config.policy_lr,
-            "qf_lr": algo_config.qf_lr,
-            "bc_steps": algo_config.bc_steps,
-            "target_update_period": algo_config.target_update_period,
-            "cql_n_actions": algo_config.cql_n_actions,
-            "cql_importance_sample": algo_config.cql_importance_sample,
-            "cql_lagrange": algo_config.cql_lagrange,
-            "cql_target_action_gap": algo_config.cql_target_action_gap,
-            "cql_temp": algo_config.cql_temp,
-            "cql_min_q_weight": algo_config.cql_min_q_weight,
-            "cql_max_target_backup": algo_config.cql_max_target_backup,
-            "cql_clip_diff_min": algo_config.cql_clip_diff_min,
-            "cql_clip_diff_max": algo_config.cql_clip_diff_max,
-        }
-
         print("---------------------------------------")
         print(f"Training CQL, Scene: {task_config.DATASET.CONTENT_SCENES}"
               f", Seed: {seed}, ignore_stop: {algo_config.ignore_stop}, "
               f"single_goal: {algo_config.single_goal}")
         print("---------------------------------------")
 
-        # Initialize actor
-        trainer = ContinuousCQL(**kwargs)
+        trainer = init_trainer(algo_config, state_dim, action_dim, device,
+                               max_action, action_space_shape)
 
         if algo_config.load_model != "":
             policy_file = Path(algo_config.load_model)
             trainer.load_state_dict(torch.load(policy_file))
-            actor = trainer.actor
+        actor = trainer.actor
 
         evaluations = []
         for t in tqdm.tqdm(range(int(algo_config.max_timesteps))):

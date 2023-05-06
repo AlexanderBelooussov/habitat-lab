@@ -69,24 +69,20 @@ def keep_best_trajectories(
 
 
 class Actor(nn.Module):
-    def __init__(self, config, env):
+    def __init__(self, state_dim, action_dim):
         super(Actor, self).__init__()
-
-        self.env = env
-        self.config = config
 
         self.device = torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu")
 
-        self.linear_input_size = get_input_dims(config)
-
-        action_dim = env.action_space.n
+        self.state_dim = state_dim
+        self.action_dim = action_dim
         self.net = nn.Sequential(
-            nn.Linear(self.linear_input_size, 256),
+            nn.Linear(self.state_dim, 256),
             nn.ReLU(),
             nn.Linear(256, 256),
             nn.ReLU(),
-            nn.Linear(256, action_dim)
+            nn.Linear(256, self.action_dim)
         ).to(self.device)
 
     def forward(self, state) -> torch.Tensor:
@@ -161,6 +157,21 @@ class BC:  # noqa
         self.total_it = state_dict["total_it"]
 
 
+def init_trainer(algo_config, state_dim, action_dim, device, **kwargs):
+    actor = Actor(state_dim, action_dim)
+    actor_optimizer = torch.optim.Adam(actor.parameters(),
+                                       lr=algo_config.learning_rate)
+
+    kwargs = {
+        "actor": actor,
+        "actor_optimizer": actor_optimizer,
+        "discount": algo_config.DISCOUNT,
+        "device": device,
+    }
+    # Initialize policy
+    trainer = BC(**kwargs)
+    return trainer
+
 def train(config):
     if "position" in config.MODEL.used_inputs:
         config.defrost()
@@ -178,7 +189,7 @@ def train(config):
         habitat.Env(config=config.TASK_CONFIG),
         state_mean=mean_std["used"][0],
         state_std=mean_std["used"][1],
-        used_inputs=config.MODEL.used_inputs,
+        model_config=config.MODEL,
         continuous=False,
         ignore_stop=config.RL.BC.ignore_stop,
     ) as env:
@@ -189,13 +200,6 @@ def train(config):
             n_eval_episodes=config.RL.BC.eval_episodes,
             single_goal=config.RL.BC.single_goal,
         )
-        # train_episodes = keep_best_trajectories(
-        #     config=config.TASK_CONFIG,
-        #     groups=train_episodes,
-        #     discount=config.RL.BC.DISCOUNT,
-        #     frac=config.RL.BC.FRAC,
-        #     max_episode_steps=config.RL.BC.MAX_TRAJ_LEN,
-        # )
 
         if hasattr(config,
                    "CHECKPOINT_FOLDER") and config.CHECKPOINT_FOLDER is not None:
@@ -208,29 +212,14 @@ def train(config):
         # Set seeds
         seed = config.SEED
         set_seed(seed, env)
-
-        actor = Actor(config, env)
-        actor_optimizer = torch.optim.Adam(actor.parameters(), lr=config.RL.BC.learning_rate)
-
-        kwargs = {
-            "actor": actor,
-            "actor_optimizer": actor_optimizer,
-            "discount": config.RL.BC.DISCOUNT,
-            "device": device,
-        }
-
-        print("---------------------------------------")
-        print(
-            f"Training BC, task: {config.BASE_TASK_CONFIG_PATH}, Seed: {seed}")
-        print("---------------------------------------")
-
-        # Initialize policy
-        trainer = BC(**kwargs)
+        state_dim = get_input_dims(config)
+        trainer = init_trainer(config.RL.BC, state_dim,
+                               env.action_space.n, device)
 
         if config.RL.BC.LOAD_MODEL != "":
             policy_file = Path(config.load_model)
             trainer.load_state_dict(torch.load(policy_file))
-            actor = trainer.actor
+        actor = trainer.actor
 
         wandb_init(config)
         wandb.watch(actor, log="all")
@@ -248,6 +237,8 @@ def train(config):
             max_episode_steps=config.RL.BC.MAX_TRAJ_LEN,
             frac=config.RL.BC.FRAC,
             discount=config.RL.BC.DISCOUNT,
+            observation_space=env.observation_space,
+            depth=True
         )
         for t in tqdm(range(int(config.RL.BC.num_updates)), desc="Training"):
             batch = next(batch_gen)
@@ -265,8 +256,8 @@ def train(config):
                     episodes=eval_episodes,
                     seed=config.SEED,
                     used_inputs=config.MODEL.used_inputs,
-                    # video=t == config.NUM_UPDATES - 1,
-                    video=True,
+                    video=t+1 == config.NUM_UPDATES,
+                    # video=True,
                     video_dir=config.VIDEO_DIR,
                     video_prefix="bc/bc",
                     ignore_stop=config.RL.BC.ignore_stop,
