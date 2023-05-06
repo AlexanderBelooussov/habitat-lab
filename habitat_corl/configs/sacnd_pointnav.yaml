@@ -58,3 +58,13 @@ MODEL:
   # selecting inputs to use
 #  used_inputs: ["position", "heading_vec", "goal_position"]
   used_inputs: ["position", "heading_vec"]
+  DEPTH_ENCODER:
+    cnn_type: "VlnResnetDepthEncoder"
+    output_size: 128
+    backbone: "resnet50"
+    trainable: False
+    ddppo_checkpoint: "data/ddppo-models/gibson-2plus-resnet50.pth"
+  STATE_ENCODER:
+    hidden_size: 2048
+    rnn_type: "GRU"
+    num_recurrent_layers: 2

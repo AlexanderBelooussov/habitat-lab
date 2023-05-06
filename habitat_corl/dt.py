@@ -92,15 +92,14 @@ def load_trajectories(
             i += 1
     traj, traj_len = [], []
 
-    buffer = load_full_dataset(
-        config.TASK_CONFIG,
-        groups=groups,
-        datasets=["action", "done", "reward"] + \
-            [f"state_{key}" for key in used_inputs] + \
-            [f"next_state_{key}" for key in used_inputs],
-        ignore_stop=config.RL.DT.ignore_stop,
-        single_goal=single_goal
-    )
+    buffer = load_full_dataset(config.TASK_CONFIG, groups=groups,
+                               datasets=["action", "done", "reward"] + \
+                                        [f"state_{key}" for key in
+                                         used_inputs] + \
+                                        [f"next_state_{key}" for key in
+                                         used_inputs],
+                               ignore_stop=config.RL.DT.ignore_stop,
+                               single_goal=single_goal)
 
     data_, episode_step = defaultdict(list), 0
     for episode_step in range(buffer.num_steps):
@@ -503,7 +502,7 @@ def train(config):
     # evaluation environment with state & reward preprocessing (as in dataset above)
     eval_env = wrap_env(
         env,
-        used_inputs=config.MODEL.used_inputs,
+        model_config=config.MODEL,
         state_mean=dataset.state_mean,
         state_std=dataset.state_std,
         reward_scale=dt_config.reward_scale,

@@ -6,6 +6,11 @@ from gym import ObservationWrapper, ActionWrapper
 import numpy as np
 from typing import Union
 
+import torch
+
+from habitat_baselines.il.common.encoders.resnet_encoders import \
+    VlnResnetDepthEncoder
+
 
 class HabitatWrapper(ObservationWrapper):
     def reset(self, **kwargs):
@@ -114,15 +119,29 @@ def wrap_env(
     state_mean: Union[np.ndarray, float] = 0.0,
     state_std: Union[np.ndarray, float] = 1.0,
     reward_scale: float = 1.0,
-    used_inputs=None,
+    model_config=None,
     ignore_stop=False,
     continuous=False,
     turn_angle=30,
+
 ) -> gym.Env:
+    used_inputs = model_config.used_inputs
     if used_inputs is None:
         used_inputs = ["postion", "heading", "pointgoal"]
+    if "depth" in used_inputs:
+        depth_encoder = VlnResnetDepthEncoder(
+            observation_space=env.observation_space,
+            output_size=model_config.DEPTH_ENCODER.output_size,
+            checkpoint=model_config.DEPTH_ENCODER.ddppo_checkpoint,
+            backbone=model_config.DEPTH_ENCODER.backbone,
+            trainable=model_config.DEPTH_ENCODER.trainable,
+        )
 
     def state_to_vector(state):
+        if "depth" in used_inputs:
+            state["depth"] = torch.from_numpy(np.expand_dims(state["depth"], 0))
+            depth_encoding = depth_encoder(state)
+            state["depth"] = depth_encoding[0].detach().numpy()
         return np.concatenate([state[key] for key in used_inputs], axis=-1)
 
     def normalize_state(state):

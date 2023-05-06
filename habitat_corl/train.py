@@ -55,7 +55,7 @@ def main():
         "--task",
         type=str,
         default="singlegoal",
-        choices=["pointnav", "objectnav", "singlegoal", "pointnav_depth"],
+        choices=["pointnav", "objectnav", "singlegoal", "pointnavdepth"],
         help="Task to use",
     )
     parser.add_argument(
@@ -186,6 +186,7 @@ def main():
 
     if ignore_stop:
         config.NAME += "-ignore_stop"
+
     if task == "singlegoal":
         config.GROUP = f"SingleGoal_{scene}"
         if algorithm == "dt":
@@ -193,11 +194,12 @@ def main():
         algo_config.single_goal = True
         config.MODEL.used_inputs = ["position", "heading_vec"]
         algo_config.ignore_stop = True
-    elif task == "pointnav_depth":
+    elif task == "pointnavdepth":
         config.GROUP = f"PointNavDepth_{scene}"
         algo_config.single_goal = False
         config.MODEL.used_inputs = ["depth", "pointgoal_with_gps_compass",
                                     "heading_vec"]
+        config.BASE_TASK_CONFIG_PATH = "configs/tasks/pointnav_mp3d_depth.yaml"
     elif task == "pointnav":
         config.GROUP = f"PointNav_{scene}"
         algo_config.single_goal = False
@@ -206,7 +208,6 @@ def main():
     config.TASK_CONFIG.DATASET.SP_DATASET_PATH = dataset_dict[scene]
     if args.web_dataset:
         config.TASK_CONFIG.DATASET.WEB_DATASET_PATH = f"data/web_datasets/web_dataset_{scene}.hdf5"
-
     if scene == "debug":
         algo_config.eval_episodes = 100
     else:

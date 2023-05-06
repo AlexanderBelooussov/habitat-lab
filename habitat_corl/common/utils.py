@@ -104,8 +104,6 @@ def eval_actor(env, actor, device, episodes, seed, max_traj_len=1000,
                used_inputs=["pointgoal_with_gps_compass"], video=False,
                video_dir="demos", video_prefix="demo", ignore_stop=False,
                success_distance=0.2):
-    video = True
-
     def make_videos(observations_list, output_prefix, ep_id):
         # repeat last observation to get clear last frame
         for _ in range(300):

@@ -12,8 +12,9 @@ from habitat_corl.shortest_path_dataset import register_new_sensors, \
 
 
 def algo_to_cfgname(algo):
-    if algo in ["sac_n", "td3_bc"]:
-        return algo.upper()
+    if algo in ["sac_n_d", "td3_bc_d"]:
+        return algo[:-2].upper()
+    return algo.upper()
 
 
 def eval_checkpoint(checkpoint_path, make_trainer, algorithm, continuous):
@@ -55,9 +56,12 @@ def eval_checkpoint(checkpoint_path, make_trainer, algorithm, continuous):
         state_dim = get_input_dims(config)
         if continuous:
             action_dim = env.action_space.shape[0]
+            max_action = float(env.action_space.high[0])
+            action_space_shape = env.action_space.shape
         else:
             action_dim = env.action_space.n
-        max_action = float(env.action_space.high[0])
+            max_action = 1.0
+            action_space_shape = (1,)
 
         train_episodes, eval_episodes = train_eval_split(
             env=env,
@@ -71,7 +75,8 @@ def eval_checkpoint(checkpoint_path, make_trainer, algorithm, continuous):
             state_dim=state_dim,
             action_dim=action_dim,
             device=device,
-            max_action=max_action
+            max_action=max_action,
+            action_space_shape=action_space_shape,
         )
 
         trainer.load_state_dict(
@@ -85,6 +90,7 @@ def eval_checkpoint(checkpoint_path, make_trainer, algorithm, continuous):
             seed=config.SEED,
             used_inputs=config.MODEL.used_inputs,
             video=True,
+            # video=False,
             video_dir=config.VIDEO_DIR,
             video_prefix=f"{algorithm}/{checkpoint_name}/{algorithm}",
             success_distance=task_config.TASK.SUCCESS_DISTANCE,
@@ -100,23 +106,79 @@ def eval_checkpoint(checkpoint_path, make_trainer, algorithm, continuous):
 
 
 def main():
-    algorithm = "td3_bc"
-    scene = "small"
-    checkpoint_nr = 15000
-    seed = 2
+    algorithm = "sac_n"
+    scene = "medium"
+    checkpoint_nr = 1000000
+    seed = 0
     if algorithm == "sac_n":
-        from habitat_corl.sac_n import make_trainer
+        from habitat_corl.sac_n import init_trainer
         eval_checkpoint(
             f"checkpoints/SingleGoal_{scene}-defaults/SAC-N-seed{seed}/{seed}/checkpoint_{checkpoint_nr}.pt",
-            make_trainer,
+            init_trainer,
             algorithm,
             continuous=True,
         )
     elif algorithm == "td3_bc":
-        from habitat_corl.td3_bc import make_trainer
+        from habitat_corl.td3_bc import init_trainer
         eval_checkpoint(
             f"checkpoints/SingleGoal_{scene}-defaults/TD3_BC-seed{seed}/{seed}/checkpoint_{checkpoint_nr}.pt",
-            make_trainer,
+            init_trainer,
+            algorithm,
+            continuous=True,
+        )
+    elif algorithm == "sac_n_d":
+        from habitat_corl.sac_n_discrete import init_trainer
+        eval_checkpoint(
+            f"checkpoints/SingleGoal_{scene}-defaults/SAC-N-D-seed{seed}/{seed}/checkpoint_{checkpoint_nr}.pt",
+            init_trainer,
+            algorithm,
+            continuous=False,
+        )
+    elif algorithm == "td3_bc_d":
+        from habitat_corl.td3_bc_discrete import init_trainer
+        eval_checkpoint(
+            f"checkpoints/SingleGoal_{scene}-defaults/TD3_BC_Discrete-seed{seed}/{seed}/checkpoint_{checkpoint_nr}.pt",
+            init_trainer,
+            algorithm,
+            continuous=False,
+        )
+    elif algorithm == "cql":
+        from habitat_corl.cql import init_trainer
+        eval_checkpoint(
+            f"checkpoints/SingleGoal_{scene}-defaults/CQL-seed{seed}/{seed}/checkpoint_{checkpoint_nr}.pt",
+            init_trainer,
+            algorithm,
+            continuous=True,
+        )
+    elif algorithm == "bc":
+        from habitat_corl.any_percent_bc import init_trainer
+        eval_checkpoint(
+            f"checkpoints/SingleGoal_{scene}-defaults/BC-seed{seed}/{seed}/checkpoint_{checkpoint_nr}.pt",
+            init_trainer,
+            algorithm,
+            continuous=False,
+        )
+    elif algorithm == "bc10":
+        from habitat_corl.any_percent_bc import init_trainer
+        eval_checkpoint(
+            f"checkpoints/SingleGoal_{scene}-defaults/BC-10-seed{seed}/{seed}/checkpoint_{checkpoint_nr}.pt",
+            init_trainer,
+            algorithm,
+            continuous=False,
+        )
+    elif algorithm == "iql":
+        from habitat_corl.iql import init_trainer
+        eval_checkpoint(
+            f"checkpoints/SingleGoal_{scene}-defaults/IQL-seed{seed}/{seed}/checkpoint_{checkpoint_nr}.pt",
+            init_trainer,
+            algorithm,
+            continuous=True,
+        )
+    elif algorithm == "lb_sac":
+        from habitat_corl.lb_sac import init_trainer
+        eval_checkpoint(
+            f"checkpoints/SingleGoal_{scene}-defaults/LB_SAC-seed{seed}/{seed}/checkpoint_{checkpoint_nr}.pt",
+            init_trainer,
             algorithm,
             continuous=True,
         )

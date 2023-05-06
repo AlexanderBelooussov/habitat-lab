@@ -291,7 +291,7 @@ class ReplayBuffer:
         return sample
 
     def normalize_states(self, mean_std: Dict) -> Dict:
-        normalized = 0
+        normalized = 0 if "depth" not in self.states else 1  # depth is already normalized
         goal = len(self.states.keys())
         for key in list(mean_std.keys()):
             state_key = key.replace("state_", "")
@@ -512,6 +512,8 @@ def get_input_dims(config):
         linear_input_size += 3
     if "heading_vec" in config.MODEL.used_inputs:
         linear_input_size += 2
+    if "depth" in config.MODEL.used_inputs:
+        linear_input_size += config.MODEL.DEPTH_ENCODER.output_size
 
     return linear_input_size
 

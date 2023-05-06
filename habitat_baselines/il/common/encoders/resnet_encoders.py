@@ -77,7 +77,7 @@ class VlnResnetDepthEncoder(nn.Module):
             [BATCH, OUTPUT_SIZE]
         """
         obs_depth = observations["depth"]
-        if len(obs_depth.size()) == 5:
+        if len(obs_depth.shape) == 5:
             observations["depth"] = obs_depth.contiguous().view(
                 -1, obs_depth.size(2), obs_depth.size(3), obs_depth.size(4)
             )
@@ -154,7 +154,7 @@ class ResnetRGBEncoder(nn.Module):
             self.output_shape = list(self.visual_encoder.output_shape)
             self.output_shape[0] += self.spatial_embeddings.embedding_dim
             self.output_shape = tuple(self.output_shape)
-    
+
     @property
     def is_blind(self):
         return self._n_input_rgb == 0
@@ -250,7 +250,7 @@ class ResnetSemSeqEncoder(nn.Module):
             self.output_shape = list(self.visual_encoder.output_shape)
             self.output_shape[0] += self.spatial_embeddings.embedding_dim
             self.output_shape = tuple(self.output_shape)
-    
+
     @property
     def is_blind(self):
         return self._n_input_rgb == 0

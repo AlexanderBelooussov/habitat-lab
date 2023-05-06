@@ -352,6 +352,42 @@ class ImplicitQLearning:
         self.total_it = state_dict["total_it"]
 
 
+def init_trainer(algo_config, state_dim, action_dim, device, max_action, **kwargs):
+    q_network = TwinQ(state_dim, action_dim).to(device)
+    v_network = ValueFunction(state_dim).to(device)
+    actor = (
+        DeterministicPolicy(state_dim, action_dim, max_action)
+        if algo_config.iql_deterministic
+        else GaussianPolicy(state_dim, action_dim, max_action)
+    ).to(device)
+    v_optimizer = torch.optim.Adam(v_network.parameters(),
+                                   lr=algo_config.learning_rate)
+    q_optimizer = torch.optim.Adam(q_network.parameters(),
+                                   lr=algo_config.learning_rate)
+    actor_optimizer = torch.optim.Adam(actor.parameters(),
+                                       lr=algo_config.learning_rate)
+
+    kwargs = {
+        "max_action": max_action,
+        "actor": actor,
+        "actor_optimizer": actor_optimizer,
+        "q_network": q_network,
+        "q_optimizer": q_optimizer,
+        "v_network": v_network,
+        "v_optimizer": v_optimizer,
+        "discount": algo_config.discount,
+        "tau": algo_config.tau,
+        "device": device,
+        # IQL
+        "beta": algo_config.beta,
+        "iql_tau": algo_config.iql_tau,
+        "max_steps": algo_config.max_timesteps,
+    }
+    # Initialize actor
+    trainer = ImplicitQLearning(**kwargs)
+    return trainer
+
+
 def train(config):
     algo_config = config.RL.IQL
     task_config = config.TASK_CONFIG
@@ -366,7 +402,7 @@ def train(config):
         habitat.Env(config=task_config),
         state_mean=mean_std["used"][0],
         state_std=mean_std["used"][1],
-        used_inputs=config.MODEL.used_inputs,
+        model_config=config.MODEL,
         continuous=True,
         ignore_stop=True,
         turn_angle=task_config.SIMULATOR.TURN_ANGLE,
@@ -408,43 +444,14 @@ def train(config):
         seed = config.SEED
         set_seed(seed, env)
 
-        q_network = TwinQ(state_dim, action_dim).to(device)
-        v_network = ValueFunction(state_dim).to(device)
-        actor = (
-            DeterministicPolicy(state_dim, action_dim, max_action)
-            if algo_config.iql_deterministic
-            else GaussianPolicy(state_dim, action_dim, max_action)
-        ).to(device)
-        v_optimizer = torch.optim.Adam(v_network.parameters(), lr=algo_config.learning_rate)
-        q_optimizer = torch.optim.Adam(q_network.parameters(), lr=algo_config.learning_rate)
-        actor_optimizer = torch.optim.Adam(actor.parameters(), lr=algo_config.learning_rate)
-
-        kwargs = {
-            "max_action": max_action,
-            "actor": actor,
-            "actor_optimizer": actor_optimizer,
-            "q_network": q_network,
-            "q_optimizer": q_optimizer,
-            "v_network": v_network,
-            "v_optimizer": v_optimizer,
-            "discount": algo_config.discount,
-            "tau": algo_config.tau,
-            "device": device,
-            # IQL
-            "beta": algo_config.beta,
-            "iql_tau": algo_config.iql_tau,
-            "max_steps": algo_config.max_timesteps,
-        }
-
         print("---------------------------------------")
         print(f"Training IQL, Scene: {task_config.DATASET.CONTENT_SCENES}"
               f", Seed: {seed}, ignore_stop: {algo_config.ignore_stop}, "
               f"single_goal: {algo_config.single_goal}")
         print("---------------------------------------")
 
-        # Initialize actor
-        trainer = ImplicitQLearning(**kwargs)
-
+        trainer = init_trainer(algo_config, state_dim, action_dim, device,
+                               max_action)
         wandb.watch(trainer.actor, log="all")
         wandb.watch(trainer.qf, log="all")
         wandb.watch(trainer.vf, log="all")
@@ -452,7 +459,7 @@ def train(config):
         if algo_config.load_model != "":
             policy_file = Path(algo_config.load_model)
             trainer.load_state_dict(torch.load(policy_file))
-            actor = trainer.actor
+        actor = trainer.actor
 
         evaluations = []
         for t in trange(int(algo_config.max_timesteps)):

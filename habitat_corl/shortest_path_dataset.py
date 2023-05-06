@@ -16,6 +16,7 @@ from habitat.utils.geometry_utils import quaternion_from_coeff, \
 from habitat_baselines.config.default import get_config
 from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 from habitat_corl.replay_buffer import ReplayBuffer
+from habitat_corl.common.depth_loader import DepthLoader
 from tqdm import tqdm
 import numpy as np
 from gym import spaces
@@ -386,24 +387,37 @@ def check_pickles(
 
 
 
-def load_full_dataset(config, groups=None, datasets=None, continuous=False,
-                      ignore_stop=False, single_goal=None,
+def load_full_dataset(task_config, groups=None, datasets=None,
+                      continuous=False, ignore_stop=False, single_goal=None,
                       frac=1.0, discount=0.99, max_episode_steps=1000,
                       normalization_data=None):
     if datasets is None:
         datasets = [
-            "states/position",
-            "states/heading",
-            "states/pointgoal",
+            "state_position",
+            "state_heading",
+            "state_pointgoal",
             "action"
         ]
+    # filter out depth and rgb as these are not stored in the hdf5
+    if "state_rgb" in datasets or "state_depth" in datasets:
+        datasets = [dataset for dataset in datasets if dataset not in ["state_rgb", "state_depth"]]
+        # add position becuase we need it to get the rgb and depth from the simulator
+        if "state_position" not in datasets:
+            datasets.append("state_position")
+    if "next_state_rgb" in datasets or "next_state_depth" in datasets:
+        datasets = [dataset for dataset in datasets if dataset not in ["next_state_rgb", "next_state_depth"]]
+        if "next_state_position" not in datasets:
+            datasets.append("next_state_position")
+
     # pkl = check_pickles(config, groups, datasets, ignore_stop, single_goal, continuous)
 
     paths = []
-    if hasattr(config.DATASET, "SP_DATASET_PATH"):
-        paths.append(config.DATASET.SP_DATASET_PATH)
-    if hasattr(config.DATASET, "WEB_DATASET_PATH"):
-        paths.append(config.DATASET.WEB_DATASET_PATH)
+    if hasattr(task_config.DATASET, "SP_DATASET_PATH"):
+        if task_config.DATASET.SP_DATASET_PATH is not None:
+            paths.append(task_config.DATASET.SP_DATASET_PATH)
+    if hasattr(task_config.DATASET, "WEB_DATASET_PATH"):
+        if task_config.DATASET.WEB_DATASET_PATH is not None:
+            paths.append(task_config.DATASET.WEB_DATASET_PATH)
 
     datasets = [dataset.replace(f"s/", "_") for dataset in datasets]
     rpb = ReplayBuffer()
@@ -550,39 +564,38 @@ def batch_generator(
     frac=1.0,
     discount=0.99,
     max_episode_steps=1000,
-    normalization_data=None
+    normalization_data=None,
+    depth=False,
+    observation_space=None,
 ):
+    if hasattr(config, "TASK_CONFIG"):
+        task_config = config.TASK_CONFIG
+    else:
+        task_config = config
     if continuous:
         ignore_stop = True
-    if not use_full_dataset:
-        while True:
-            batches = prepare_batches(
-                config,
-                n_transitions=n_transitions,
-                groups=groups,
-                datasets=datasets,
-                n_batches=n_batches,
-                continuous=continuous,
-                ignore_stop=ignore_stop
-            )
-            while len(batches) > 0:
-                batch = batches.pop(0)
-                yield batch
-    else:
-        dataset = load_full_dataset(
-            config,
-            groups=groups,
-            datasets=datasets,
-            continuous=continuous,
-            ignore_stop=ignore_stop,
-            single_goal=single_goal,
-            frac=frac,
-            discount=discount,
-            max_episode_steps=max_episode_steps,
-            normalization_data=normalization_data
+    if depth:
+        depth_loader = DepthLoader(
+            model_config=config.MODEL,
+            task_config=config.TASK_CONFIG,
+            observation_space=observation_space
         )
-        while True:
-            yield dataset.sample(n_transitions)
+    dataset = load_full_dataset(task_config=task_config,
+                                groups=groups, datasets=datasets,
+                                continuous=continuous,
+                                ignore_stop=ignore_stop,
+                                single_goal=single_goal, frac=frac,
+                                discount=discount,
+                                max_episode_steps=max_episode_steps,
+                                normalization_data=normalization_data)
+    if depth:
+        dataset = depth_loader.add_depth_to_dataset(
+            dataset,
+            next_state=True if "next_state_depth" in datasets else False,
+        )
+    while True:
+        batch = dataset.sample(n_transitions)
+        yield batch
 
 
 def sample_transitions(
@@ -651,6 +664,10 @@ def calc_mean_std(config, groups=None, used_inputs=None):
         used_std = []
         for ds in used_inputs:
             state_name = f"state_{ds}"
+            if ds in ["depth", "rgb"]:
+                used_mean.append(np.zeros(128))
+                used_std.append(np.ones(128))
+                continue
             used_mean.append(stats[state_name][0])
             used_std.append(stats[state_name][1])
         used_mean = np.concatenate(used_mean, axis=0)

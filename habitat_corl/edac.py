@@ -404,6 +404,35 @@ def modify_reward(dataset, env_name, max_episode_steps=1000):
         dataset["rewards"] -= 1.0
 
 
+def init_trainer(algo_config, state_dim, action_dim, device, **kwargs):
+    # Actor & Critic setup
+    actor = Actor(state_dim, action_dim, algo_config.hidden_dim,
+                  algo_config.max_action)
+    actor.to(device)
+    actor_optimizer = torch.optim.Adam(actor.parameters(),
+                                       lr=algo_config.actor_learning_rate)
+    critic = VectorizedCritic(
+        state_dim, action_dim, algo_config.hidden_dim, algo_config.num_critics
+    )
+    critic.to(device)
+    critic_optimizer = torch.optim.Adam(
+        critic.parameters(), lr=algo_config.critic_learning_rate
+    )
+
+    trainer = EDAC(
+        actor=actor,
+        actor_optimizer=actor_optimizer,
+        critic=critic,
+        critic_optimizer=critic_optimizer,
+        gamma=algo_config.gamma,
+        tau=algo_config.tau,
+        eta=algo_config.eta,
+        alpha_learning_rate=algo_config.alpha_learning_rate,
+        device=device,
+    )
+    return trainer
+
+
 def train(config):
     algo_config = config.RL.EDAC
     task_config = config.TASK_CONFIG
@@ -418,7 +447,7 @@ def train(config):
         habitat.Env(config=task_config),
         state_mean=mean_std["used"][0],
         state_std=mean_std["used"][1],
-        used_inputs=config.MODEL.used_inputs,
+        model_config=config.MODEL,
         continuous=True,
         ignore_stop=True,
         turn_angle=task_config.SIMULATOR.TURN_ANGLE,
@@ -448,30 +477,8 @@ def train(config):
             single_goal=get_goal(algo_config, eval_episodes)
         )
 
-        # Actor & Critic setup
-        actor = Actor(state_dim, action_dim, algo_config.hidden_dim, algo_config.max_action)
-        actor.to(device)
-        actor_optimizer = torch.optim.Adam(actor.parameters(),
-                                           lr=algo_config.actor_learning_rate)
-        critic = VectorizedCritic(
-            state_dim, action_dim, algo_config.hidden_dim, algo_config.num_critics
-        )
-        critic.to(device)
-        critic_optimizer = torch.optim.Adam(
-            critic.parameters(), lr=algo_config.critic_learning_rate
-        )
-
-        trainer = EDAC(
-            actor=actor,
-            actor_optimizer=actor_optimizer,
-            critic=critic,
-            critic_optimizer=critic_optimizer,
-            gamma=algo_config.gamma,
-            tau=algo_config.tau,
-            eta=algo_config.eta,
-            alpha_learning_rate=algo_config.alpha_learning_rate,
-            device=device,
-        )
+        trainer = init_trainer(algo_config, state_dim, action_dim, device)
+        actor = trainer.actor
 
         wandb.watch(trainer.actor, log="all")
         wandb.watch(trainer.critic, log="all")

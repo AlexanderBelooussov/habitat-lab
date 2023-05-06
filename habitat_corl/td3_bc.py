@@ -229,7 +229,7 @@ class TD3_BC:  # noqa
         self.total_it = state_dict["total_it"]
 
 
-def make_trainer(algo_config, state_dim, action_dim, device, max_action=1.0):
+def init_trainer(algo_config, state_dim, action_dim, device, max_action=1.0, **kwargs):
     actor = Actor(state_dim, action_dim, max_action).to(device)
     actor_optimizer = torch.optim.Adam(actor.parameters(),
                                        lr=algo_config.learning_rate)
@@ -277,7 +277,7 @@ def train(config):
         habitat.Env(config=task_config),
         state_mean=mean_std["used"][0],
         state_std=mean_std["used"][1],
-        used_inputs=config.MODEL.used_inputs,
+        model_config=config.MODEL,
         continuous=True,
         ignore_stop=True,
         turn_angle=task_config.SIMULATOR.TURN_ANGLE,
@@ -323,50 +323,19 @@ def train(config):
         seed = config.SEED
         set_seed(seed, env)
 
-        actor = Actor(state_dim, action_dim, max_action).to(device)
-        actor_optimizer = torch.optim.Adam(actor.parameters(), lr=algo_config.learning_rate)
-
-        critic_1 = Critic(state_dim, action_dim).to(device)
-        critic_1_optimizer = torch.optim.Adam(critic_1.parameters(), lr=algo_config.learning_rate)
-        critic_2 = Critic(state_dim, action_dim).to(device)
-        critic_2_optimizer = torch.optim.Adam(critic_2.parameters(), lr=algo_config.learning_rate)
-
-        wandb.watch(actor)
-        wandb.watch(critic_1)
-        wandb.watch(critic_2)
-
-        kwargs = {
-            "max_action": max_action,
-            "actor": actor,
-            "actor_optimizer": actor_optimizer,
-            "critic_1": critic_1,
-            "critic_1_optimizer": critic_1_optimizer,
-            "critic_2": critic_2,
-            "critic_2_optimizer": critic_2_optimizer,
-            "discount": algo_config.discount,
-            "tau": algo_config.tau,
-            "device": device,
-            # TD3
-            "policy_noise": algo_config.policy_noise * max_action,
-            "noise_clip": algo_config.noise_clip * max_action,
-            "policy_freq": algo_config.policy_freq,
-            # TD3 + BC
-            "alpha": algo_config.alpha,
-        }
-
         print("---------------------------------------")
         print(f"Training TD3 + BC, Scene: {task_config.DATASET.CONTENT_SCENES}"
               f", Seed: {seed}, ignore_stop: {algo_config.ignore_stop}, "
               f"single_goal: {algo_config.single_goal}")
         print("---------------------------------------")
 
-        # Initialize actor
-        trainer = TD3_BC(**kwargs)
+        trainer = init_trainer(algo_config, state_dim, action_dim, device,
+                               max_action=max_action)
 
         if algo_config.load_model != "":
             policy_file = Path(algo_config.load_model)
             trainer.load_state_dict(torch.load(policy_file))
-            actor = trainer.actor
+        actor = trainer.actor
 
         evaluations = []
         for t in trange(int(algo_config.max_timesteps), desc="Training"):

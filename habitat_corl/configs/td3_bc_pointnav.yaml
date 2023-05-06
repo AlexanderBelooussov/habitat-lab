@@ -58,35 +58,6 @@ MODEL:
   # selecting inputs to use
 #  used_inputs: ["position", "heading_vec", "goal_position"]
   used_inputs: ["position", "heading_vec"]
-  ablate_depth: False
-  ablate_rgb: False
-  num_recurrent_layers: 2
-  rnn_type: "GRU"
-  backbone: "resnet18"
-  resnet_baseplanes: 32
-  normalize_visual_inputs: False
-  force_blind_policy: False
-  embed_sge: True
-  embed_goal_seg: False
-  sem_seg_pred: True
-  NO_VISION: False
-  USE_SEMANTICS: False
-  USE_PRED_SEMANTICS: False
-  SWITCH_TO_PRED_SEMANTICS_UPDATE: 0
-#  SEMANTIC_ENCODER:
-#    rednet_ckpt: "data/rednet-models/rednet_semmap_mp3d_tuned.pth"
-#    cnn_type: "ResnetSemSegEncoder"
-#    output_size: 256
-#    backbone: "resnet18"
-#    train_encoder: True
-#    embedding_size: 4
-#    is_thda: False
-#    num_classes: 29
-  RGB_ENCODER:
-    cnn_type: "ResnetRGBEncoder"
-    output_size: 256
-    backbone: "resnet18"
-    train_encoder: True
   DEPTH_ENCODER:
     cnn_type: "VlnResnetDepthEncoder"
     output_size: 128
@@ -97,7 +68,3 @@ MODEL:
     hidden_size: 2048
     rnn_type: "GRU"
     num_recurrent_layers: 2
-  SEQ2SEQ:
-    use_prev_action: True
-  PROGRESS_MONITOR:
-    use: False

@@ -355,9 +355,38 @@ def modify_reward(dataset, env_name, max_episode_steps=1000):
         dataset["rewards"] -= 1.0
 
 
+def init_trainer(algo_config, state_dim, action_dim, device, **kwargs):
+    # Actor & Critic setup
+    actor = Actor(state_dim, action_dim, algo_config.hidden_dim,
+                  algo_config.max_action)
+    actor.to(device)
+    actor_optimizer = torch.optim.Adam(actor.parameters(),
+                                       lr=algo_config.actor_learning_rate)
+    critic = VectorizedCritic(
+        state_dim, action_dim, algo_config.hidden_dim,
+        algo_config.num_critics
+    )
+    critic.to(device)
+    critic_optimizer = torch.optim.Adam(
+        critic.parameters(), lr=algo_config.critic_learning_rate
+    )
+
+    trainer = SACN(
+        actor=actor,
+        actor_optimizer=actor_optimizer,
+        critic=critic,
+        critic_optimizer=critic_optimizer,
+        gamma=algo_config.gamma,
+        tau=algo_config.tau,
+        alpha_learning_rate=algo_config.alpha_learning_rate,
+        device=device,
+    )
+    return trainer
+
 def train(config):
+    algo_config = config.RL.SAC_N
     set_seed(config.SEED,
-             deterministic_torch=config.RL.SAC_N.deterministic_torch)
+             deterministic_torch=algo_config.deterministic_torch)
     wandb_init(config)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -369,9 +398,9 @@ def train(config):
         habitat.Env(config=config.TASK_CONFIG),
         state_mean=mean_std["used"][0],
         state_std=mean_std["used"][1],
-        used_inputs=config.MODEL.used_inputs,
+        model_config=config.MODEL,
         continuous=False,
-        ignore_stop=config.RL.SAC_N.ignore_stop,
+        ignore_stop=algo_config.ignore_stop,
         turn_angle=config.TASK_CONFIG.SIMULATOR.TURN_ANGLE,
     ) as env:
         state_dim = get_input_dims(config)
@@ -380,35 +409,12 @@ def train(config):
         train_episodes, eval_episodes = train_eval_split(
             env=env,
             config=config,
-            n_eval_episodes=config.RL.SAC_N.eval_episodes,
-            single_goal=config.RL.SAC_N.single_goal,
+            n_eval_episodes=algo_config.eval_episodes,
+            single_goal=algo_config.single_goal,
         )
 
-        # Actor & Critic setup
-        actor = Actor(state_dim, action_dim, config.RL.SAC_N.hidden_dim,
-                      config.RL.SAC_N.max_action)
-        actor.to(device)
-        actor_optimizer = torch.optim.Adam(actor.parameters(),
-                                           lr=config.RL.SAC_N.actor_learning_rate)
-        critic = VectorizedCritic(
-            state_dim, action_dim, config.RL.SAC_N.hidden_dim,
-            config.RL.SAC_N.num_critics
-        )
-        critic.to(device)
-        critic_optimizer = torch.optim.Adam(
-            critic.parameters(), lr=config.RL.SAC_N.critic_learning_rate
-        )
-
-        trainer = SACN(
-            actor=actor,
-            actor_optimizer=actor_optimizer,
-            critic=critic,
-            critic_optimizer=critic_optimizer,
-            gamma=config.RL.SAC_N.gamma,
-            tau=config.RL.SAC_N.tau,
-            alpha_learning_rate=config.RL.SAC_N.alpha_learning_rate,
-            device=device,
-        )
+        trainer = init_trainer(algo_config, state_dim, action_dim, device)
+        actor = trainer.actor
 
         wandb.watch(trainer.actor, log="all")
         wandb.watch(trainer.critic, log="all")
@@ -426,22 +432,22 @@ def train(config):
         evaluations = []
         batch_gen = batch_generator(
             config.TASK_CONFIG,
-            n_transitions=config.RL.SAC_N.batch_size,
+            n_transitions=algo_config.batch_size,
             groups=train_episodes,
             # use_full_dataset=False,
-            use_full_dataset=config.RL.SAC_N.load_full_dataset,
-            # n_batches=config.RL.SAC_N.eval_every * config.RL.SAC_N.num_updates_on_epoch,
-            n_batches=config.RL.SAC_N.num_updates_on_epoch,
+            use_full_dataset=algo_config.load_full_dataset,
+            # n_batches=algo_config.eval_every * algo_config.num_updates_on_epoch,
+            n_batches=algo_config.num_updates_on_epoch,
             datasets=[f"state_{x}" for x in config.MODEL.used_inputs] + \
                      [f"next_state_{x}" for x in config.MODEL.used_inputs] + \
                      ["action", "reward", "done"],
-            ignore_stop=config.RL.SAC_N.ignore_stop,
+            ignore_stop=algo_config.ignore_stop,
             continuous=False,
-            single_goal=get_goal(config.RL.SAC_N, eval_episodes)
+            single_goal=get_goal(algo_config, eval_episodes)
         )
-        for epoch in trange(config.RL.SAC_N.num_epochs, desc="Training"):
+        for epoch in trange(algo_config.num_epochs, desc="Training"):
             # training
-            for _ in trange(config.RL.SAC_N.num_updates_on_epoch, desc="Epoch",
+            for _ in trange(algo_config.num_updates_on_epoch, desc="Epoch",
                             leave=False):
                 batch = next(batch_gen)
                 batch.normalize_states(mean_std)
@@ -449,7 +455,7 @@ def train(config):
                 update_info = trainer.update(batch,
                                              used_inputs=config.MODEL.used_inputs)
 
-                if total_updates % config.RL.SAC_N.log_every == 0:
+                if total_updates % algo_config.log_every == 0:
                     wandb.log(
                         {"epoch": epoch, **update_info},
                         step=total_updates
@@ -459,7 +465,7 @@ def train(config):
 
             # evaluation
             t = total_updates
-            if (epoch + 1) % config.RL.SAC_N.eval_every == 0 or epoch == config.RL.SAC_N.num_epochs - 1:
+            if (epoch + 1) % algo_config.eval_every == 0 or epoch == algo_config.num_epochs - 1:
                 print(f"Time steps: {t + 1}")
                 eval_scores = eval_actor(
                     env,
@@ -469,17 +475,17 @@ def train(config):
                     seed=config.SEED,
                     used_inputs=config.MODEL.used_inputs,
                     # video=True,
-                    video=epoch == config.RL.SAC_N.num_epochs - 1,
+                    video=epoch == algo_config.num_epochs - 1,
                     video_dir=config.VIDEO_DIR,
                     video_prefix="sac_n_d/sac_n_d",
                     success_distance=config.TASK_CONFIG.TASK.SUCCESS_DISTANCE,
-                    ignore_stop=config.RL.SAC_N.ignore_stop,
+                    ignore_stop=algo_config.ignore_stop,
                 )
                 eval_scores = remove_unreachable(eval_scores)
                 evaluations.append(eval_scores)
                 print("---------------------------------------")
                 print(
-                    f"Evaluation over {config.RL.SAC_N.eval_episodes} episodes: "
+                    f"Evaluation over {algo_config.eval_episodes} episodes: "
                 )
                 for key in eval_scores:
                     print(f"{key}: {np.mean(eval_scores[key])}")

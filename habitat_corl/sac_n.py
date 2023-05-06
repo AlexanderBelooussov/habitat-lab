@@ -357,7 +357,7 @@ def modify_reward(dataset, env_name, max_episode_steps=1000):
         dataset["rewards"] -= 1.0
 
 
-def make_trainer(algo_config, state_dim, action_dim, device, **kwargs):
+def init_trainer(algo_config, state_dim, action_dim, device, **kwargs):
     # Actor & Critic setup
     actor = Actor(state_dim, action_dim, algo_config.hidden_dim,
                   algo_config.max_action)
@@ -401,7 +401,7 @@ def train(config):
         habitat.Env(config=config.TASK_CONFIG),
         state_mean=mean_std["used"][0],
         state_std=mean_std["used"][1],
-        used_inputs=config.MODEL.used_inputs,
+        model_config=config.MODEL,
         continuous=True,
         ignore_stop=config.RL.SAC_N.ignore_stop,
         turn_angle=config.TASK_CONFIG.SIMULATOR.TURN_ANGLE,
@@ -417,7 +417,8 @@ def train(config):
             single_goal=config.RL.SAC_N.single_goal,
         )
 
-        trainer = make_trainer(config.RL.SAC_N, state_dim, action_dim, device)
+        trainer = init_trainer(config.RL.SAC_N, state_dim, action_dim, device)
+        actor = trainer.actor
 
         wandb.watch(trainer.actor, log="all")
         wandb.watch(trainer.critic, log="all")
