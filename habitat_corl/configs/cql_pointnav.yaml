@@ -51,7 +51,7 @@ RL:
     use_automatic_entropy_tuning: true
     # general params
     deterministic_torch: False
-    log_every: 100
+    log_every: 1000
     load_full_dataset: True
     ignore_stop: True
     single_goal: True

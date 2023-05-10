@@ -30,6 +30,12 @@ def load_datasets(scene):
 
         dataset = load_full_dataset(config.TASK_CONFIG,
                                     datasets=["states/position"])
+        n_trajectories = len(set(dataset.episode_ids))
+        n_steps = len(dataset.episode_ids)
+        avg_trajectory_length = n_steps / n_trajectories
+        print(f"Loaded {scene} dataset with {n_trajectories} trajectories "
+              f"and {n_steps} steps. Average trajectory length: "
+              f"{avg_trajectory_length}")
         datasets.append(dataset)
     return datasets[0], datasets[1]
 
@@ -118,8 +124,9 @@ def main():
 
 
 if __name__ == "__main__":
-    for scene in ["small", "medium", "large", "xl"]:
+    # for scene in ["small", "medium", "large", "xl"]:
+    for scene in ["medium"]:
         sp, web = load_datasets(scene)
-        for web_dataset in [True, False]:
-            plot_heatmap(sp, web, scene, web_dataset, False)
-        plot_heatmap(sp, web, scene, True, True)
+        # for web_dataset in [True, False]:
+        #     plot_heatmap(sp, web, scene, web_dataset, False)
+        # plot_heatmap(sp, web, scene, True, True)
