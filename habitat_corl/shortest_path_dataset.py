@@ -638,8 +638,8 @@ def calc_mean_std(config, groups=None, used_inputs=None):
                 if count % 100 == 0:
                     # early stopping if mean and std do not change anymore
                     ad = np.concatenate(all_data, axis=0)
-                    new_mean = np.mean(ad, axis=0)
-                    new_std = np.std(ad, axis=0)
+                    new_mean = np.mean(ad, axis=0, dtype=np.float32)
+                    new_std = np.std(ad, axis=0, dtype=np.float32)
                     if mean is None:
                         mean = new_mean
                         std = new_std
@@ -655,7 +655,7 @@ def calc_mean_std(config, groups=None, used_inputs=None):
             stats[ds] = (np.mean(all_data, axis=0), np.std(all_data, axis=0))
 
     if "state_heading_vec" in stats:
-        stats["state_heading_vec"] = (np.zeros(2), np.ones(2))
+        stats["state_heading_vec"] = (np.zeros(2, dtype=np.float32), np.ones(2, dtype=np.float32))
     if "state_position" in stats and "state_goal_position" in stats:
         stats["state_goal_position"] = stats["state_position"]
 
@@ -665,8 +665,8 @@ def calc_mean_std(config, groups=None, used_inputs=None):
         for ds in used_inputs:
             state_name = f"state_{ds}"
             if ds in ["depth", "rgb"]:
-                used_mean.append(np.zeros(128))
-                used_std.append(np.ones(128))
+                used_mean.append(np.zeros(128, dtype=np.float32))
+                used_std.append(np.ones(128, dtype=np.float32))
                 continue
             used_mean.append(stats[state_name][0])
             used_std.append(stats[state_name][1])

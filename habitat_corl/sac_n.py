@@ -387,6 +387,7 @@ def init_trainer(algo_config, state_dim, action_dim, device, **kwargs):
     )
     return trainer
 
+
 def train(config):
     set_seed(config.SEED,
              deterministic_torch=config.RL.SAC_N.deterministic_torch)
@@ -455,8 +456,10 @@ def train(config):
                 batch = next(batch_gen)
                 batch.normalize_states(mean_std)
                 batch.to_tensor(device=device)
-                update_info = trainer.update(batch,
-                                             used_inputs=config.MODEL.used_inputs)
+                update_info = trainer.update(
+                    batch,
+                    used_inputs=config.MODEL.used_inputs
+                )
 
                 if total_updates % config.RL.SAC_N.log_every == 0:
                     wandb.log(
