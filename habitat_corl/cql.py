@@ -776,7 +776,10 @@ def train(config):
             batch = next(batch_gen)
             log_dict = trainer.train(batch,
                                      used_inputs=config.MODEL.used_inputs)
-            wandb.log(log_dict, step=trainer.total_it)
+            try:
+                wandb.log(log_dict, step=trainer.total_it)
+            except:
+                pass
             # Evaluate episode
             if (t + 1) % algo_config.eval_freq == 0:
                 print(f"Time steps: {t + 1}")
@@ -809,13 +812,16 @@ def train(config):
                                  f"checkpoint_{trainer.total_it}.pt"),
                 )
                 for key in eval_scores:
-                    wandb.log(
-                        {
-                            f"eval/{key}_mean": np.mean(eval_scores[key]),
-                            f"eval/{key}_std": np.std(eval_scores[key])
-                        },
-                        step=trainer.total_it,
-                    )
+                    try:
+                        wandb.log(
+                            {
+                                f"eval/{key}_mean": np.mean(eval_scores[key]),
+                                f"eval/{key}_std": np.std(eval_scores[key])
+                            },
+                            step=trainer.total_it,
+                        )
+                    except:
+                        pass
 
         wandb.finish()
 
