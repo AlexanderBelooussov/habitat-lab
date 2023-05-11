@@ -29,7 +29,7 @@ RL:
     critic_layernorm: false
     critic_learning_rate: 0.0018
     edac_init: false
-    eval_episodes: 10
+    eval_episodes: 100
     eval_every: 1
     gamma: 0.99
     hidden_dim: 256
