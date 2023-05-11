@@ -108,21 +108,26 @@ def main():
     comment = args.comment
     group = args.group
 
+    if task == "pointnavdepth":
+        base_config = "configs/tasks/pointnav_mp3d_depth.yaml"
+    else:
+        base_config = "configs/tasks/pointnav_mp3d_medium.yaml"
+
     if algorithm == "sacn" and task != "objectnav":
         config = "habitat_corl/configs/sacn_pointnav.yaml"
-        config = get_config(config, [])
+        config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.SAC_N
 
     elif algorithm == "dt":
         config = "habitat_corl/configs/dt_pointnav.yaml"
-        config = get_config(config, [])
+        config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.DT
 
     elif algorithm == "bc" or algorithm == "bc10":
         config = "habitat_corl/configs/bc_pointnav.yaml"
-        config = get_config(config, [])
+        config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.BC
         if algorithm == "bc10":
@@ -130,39 +135,39 @@ def main():
             config.NAME += "-10"
     elif algorithm == "td3bc":
         config = "habitat_corl/configs/td3_bc_pointnav.yaml"
-        config = get_config(config, [])
+        config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.TD3_BC
     elif algorithm == "td3bcd":
         config = "habitat_corl/configs/td3_bc_d_pointnav.yaml"
-        config = get_config(config, [])
+        config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.TD3_BC
         algo_config.continuous = False
     elif algorithm == "iql":
         config = "habitat_corl/configs/iql_pointnav.yaml"
-        config = get_config(config, [])
+        config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.IQL
     elif algorithm == "edac":
         config = "habitat_corl/configs/edac_pointnav.yaml"
-        config = get_config(config, [])
+        config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.EDAC
     elif algorithm == "sacnd":
         config = "habitat_corl/configs/sacnd_pointnav.yaml"
-        config = get_config(config, [])
+        config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.SAC_N
         algo_config.continuous = False
     elif algorithm == "random":
         config = "habitat_corl/configs/random_pointnav.yaml"
-        config = get_config(config, [])
+        config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.RANDOM
     elif algorithm == "cql":
         config = "habitat_corl/configs/cql_pointnav.yaml"
-        config = get_config(config, [])
+        config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.CQL
     # elif algorithm == "cqld":
@@ -172,7 +177,7 @@ def main():
     #     algo_config = config.RL.CQL
     elif algorithm == "lbsac":
         config = "habitat_corl/configs/lbsac_pointnav.yaml"
-        config = get_config(config, [])
+        config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.LB_SAC
     else:
@@ -204,6 +209,8 @@ def main():
         config.GROUP = f"PointNav_{scene}"
         algo_config.single_goal = False
         config.MODEL.used_inputs = ["position", "heading_vec", "goal_position"]
+    else:
+        raise ValueError("Invalid task")
 
     config.TASK_CONFIG.DATASET.SP_DATASET_PATH = dataset_dict[scene]
     if args.web_dataset:

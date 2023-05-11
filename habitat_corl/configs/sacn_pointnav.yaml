@@ -47,6 +47,7 @@ RL:
     # debug
 #    num_updates_on_epoch: 10
 #    eval_every: 1
+#    eval_episodes: 1
 
 # Wandb logging
 PROJECT: "habitat"

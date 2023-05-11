@@ -436,7 +436,7 @@ def train(config):
         total_updates = 0
         evaluations = []
         batch_gen = batch_generator(
-            config.TASK_CONFIG,
+            config,
             n_transitions=config.RL.SAC_N.batch_size,
             groups=train_episodes,
             # use_full_dataset=False,
@@ -447,7 +447,9 @@ def train(config):
                      [f"next_state_{x}" for x in config.MODEL.used_inputs] + \
                      ["action", "reward", "done"],
             continuous=True,
-            single_goal=get_goal(config.RL.SAC_N, eval_episodes)
+            single_goal=get_goal(config.RL.SAC_N, eval_episodes),
+            observation_space=env.observation_space,
+            depth=True
         )
         for epoch in trange(config.RL.SAC_N.num_epochs, desc="Training"):
             # training

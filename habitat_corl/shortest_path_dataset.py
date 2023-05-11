@@ -575,6 +575,8 @@ def batch_generator(
     if continuous:
         ignore_stop = True
     if depth:
+        if not hasattr(config, "MODEL"):
+            raise ValueError("Model config required for depth, pass config to batch generator instead of config.TASK_CONFIG")
         depth_loader = DepthLoader(
             model_config=config.MODEL,
             task_config=config.TASK_CONFIG,
