@@ -132,14 +132,14 @@ def load_trajectories(
     std = []
     for key in used_inputs:
         if key == "goal_position" and "position" in used_inputs:
-            means.append(buffer.states["position"].mean(0))
-            std.append(buffer.states["position"].std(0))
-        if key == "heading_vec":
-            means.append(np.zeros(2))
-            std.append(np.ones(2))
+            means.append(buffer.states["position"].mean(0, dtype=np.float32))
+            std.append(buffer.states["position"].std(0, dtype=np.float32))
+        elif key == "heading_vec":
+            means.append(np.zeros(2, dtype=np.float32))
+            std.append(np.ones(2, dtype=np.float32))
         else:
-            means.append(buffer.states[key].mean(0))
-            std.append(buffer.states[key].std(0))
+            means.append(buffer.states[key].mean(0, dtype=np.float32))
+            std.append(buffer.states[key].std(0, dtype=np.float32))
 
     means = np.concatenate(means, axis=-1)
     std = np.concatenate(std, axis=-1)
