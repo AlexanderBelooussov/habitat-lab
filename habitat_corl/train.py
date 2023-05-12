@@ -85,6 +85,11 @@ def main():
         help="Use web dataset",
     )
     parser.add_argument(
+        "--web_dataset_only",
+        action="store_true",
+        help="Use web dataset, without shortest path dataset",
+    )
+    parser.add_argument(
         "--comment",
         type=str,
         default="",
@@ -215,6 +220,8 @@ def main():
     config.TASK_CONFIG.DATASET.SP_DATASET_PATH = dataset_dict[scene]
     if args.web_dataset:
         config.TASK_CONFIG.DATASET.WEB_DATASET_PATH = f"data/web_datasets/web_dataset_{scene}.hdf5"
+    if args.web_dataset_only:
+        config.TASK_CONFIG.DATASET.SP_DATASET_PATH = f"data/web_datasets/web_dataset_{scene}.hdf5"
     if scene == "debug":
         algo_config.eval_episodes = 100
     else:
