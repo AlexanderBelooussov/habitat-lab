@@ -449,7 +449,7 @@ def train(config):
             continuous=True,
             single_goal=get_goal(config.RL.SAC_N, eval_episodes),
             observation_space=env.observation_space,
-            depth=True
+            depth=True if "depth" in config.MODEL.used_inputs else False,
         )
         for epoch in trange(config.RL.SAC_N.num_epochs, desc="Training"):
             # training

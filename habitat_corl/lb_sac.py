@@ -428,7 +428,7 @@ def train(config):
         total_updates = 0
         evaluations = []
         batch_gen = batch_generator(
-            config.TASK_CONFIG,
+            config,
             n_transitions=algo_config.batch_size,
             groups=train_episodes,
             # use_full_dataset=False,
@@ -439,7 +439,9 @@ def train(config):
                      [f"next_state_{x}" for x in config.MODEL.used_inputs] + \
                      ["action", "reward", "done"],
             continuous=True,
-            single_goal=get_goal(algo_config, eval_episodes)
+            single_goal=get_goal(algo_config, eval_episodes),
+            observation_space=env.observation_space,
+            depth=True if "depth" in config.MODEL.used_inputs else False,
         )
         for epoch in trange(algo_config.num_epochs, desc="Training"):
             # training

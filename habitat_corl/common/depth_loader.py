@@ -1,3 +1,5 @@
+import time
+
 import torch
 from habitat.sims import make_sim
 from habitat.datasets import make_dataset
@@ -63,6 +65,8 @@ class DepthLoader():
             rotation = quaternion.from_rotation_vector(axis_angle)
             depth_encoding = self.get_depth_from_postion_rotation(position, rotation)
             depth_data.append(depth_encoding)
+            if i % 10_000 == 0:
+                print(f"{time.time()}: {i} / {dataset.num_steps}")
         dataset.states['depth'] = np.array(depth_data)
 
         if next_state:

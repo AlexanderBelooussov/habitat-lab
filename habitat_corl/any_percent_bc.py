@@ -238,7 +238,7 @@ def train(config):
             frac=config.RL.BC.FRAC,
             discount=config.RL.BC.DISCOUNT,
             observation_space=env.observation_space,
-            depth=True
+            depth=True if "depth" in config.MODEL.used_inputs else False,
         )
         for t in tqdm(range(int(config.RL.BC.num_updates)), desc="Training"):
             batch = next(batch_gen)
