@@ -81,6 +81,8 @@ class Actor(nn.Module):
         n_layers: int = 3,
     ):
         super().__init__()
+        if n_layers == -1:  # use default value
+            n_layers = 3
         layers = [nn.Linear(state_dim, hidden_dim), nn.ReLU()]
         for _ in range(n_layers - 1):
             layers.append(nn.Linear(hidden_dim, hidden_dim))
@@ -151,7 +153,8 @@ class VectorizedCritic(nn.Module):
         n_layers: int = 3
     ):
         super().__init__()
-
+        if n_layers == -1:  # use default value
+            n_layers = 3
         layers = [
             VectorizedLinear(state_dim + action_dim, hidden_dim, num_critics),
             nn.LayerNorm(hidden_dim) if layernorm else nn.Identity(),

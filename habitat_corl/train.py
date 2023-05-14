@@ -99,6 +99,12 @@ def main():
         default="",
         help="Additional change to group name",
     )
+    parser.add_argument(
+        "--n_layers",
+        type=int,
+        default=-1,
+        help="Number of layers for the network, -1 for default",
+    )
 
     args = parser.parse_args()
 
@@ -110,6 +116,7 @@ def main():
     scene = args.scene
     comment = args.comment
     group = args.group
+    n_layers = args.n_layers
 
     if device == "cuda:0" and scene != "debug":
         tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
@@ -217,6 +224,11 @@ def main():
         config.MODEL.used_inputs = ["position", "heading_vec", "goal_position"]
     else:
         raise ValueError("Invalid task")
+
+    if n_layers > 0:
+        algo_config.n_layers = n_layers
+        algo_config.n_actor_layers = n_layers
+        algo_config.n_critic_layers = n_layers
 
     config.TASK_CONFIG.DATASET.SP_DATASET_PATH = dataset_dict[scene]
     if args.web_dataset:
