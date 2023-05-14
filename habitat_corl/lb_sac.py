@@ -78,16 +78,15 @@ class Actor(nn.Module):
         hidden_dim: int,
         edac_init: bool,
         max_action: float = 1.0,
+        n_layers: int = 3,
     ):
         super().__init__()
-        self.trunk = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-        )
+        layers = [nn.Linear(state_dim, hidden_dim), nn.ReLU()]
+        for _ in range(n_layers - 1):
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
+            layers.append(nn.ReLU())
+
+        self.trunk = nn.Sequential(*layers)
         # with separate layers works better than with Linear(hidden_dim, 2 * action_dim)
         self.mu = nn.Linear(hidden_dim, action_dim)
         self.log_sigma = nn.Linear(hidden_dim, action_dim)
@@ -149,20 +148,24 @@ class VectorizedCritic(nn.Module):
         num_critics: int,
         layernorm: bool,
         edac_init: bool,
+        n_layers: int = 3
     ):
         super().__init__()
-        self.critic = nn.Sequential(
+
+        layers = [
             VectorizedLinear(state_dim + action_dim, hidden_dim, num_critics),
             nn.LayerNorm(hidden_dim) if layernorm else nn.Identity(),
             nn.ReLU(),
-            VectorizedLinear(hidden_dim, hidden_dim, num_critics),
-            nn.LayerNorm(hidden_dim) if layernorm else nn.Identity(),
-            nn.ReLU(),
-            VectorizedLinear(hidden_dim, hidden_dim, num_critics),
-            nn.LayerNorm(hidden_dim) if layernorm else nn.Identity(),
-            nn.ReLU(),
-            VectorizedLinear(hidden_dim, 1, num_critics),
-        )
+        ]
+        for _ in range(n_layers - 1):
+            layers.extend([
+                VectorizedLinear(hidden_dim, hidden_dim, num_critics),
+                nn.LayerNorm(hidden_dim) if layernorm else nn.Identity(),
+                nn.ReLU(),
+            ])
+        layers += [VectorizedLinear(hidden_dim, 1, num_critics)]
+
+        self.critic = nn.Sequential(*layers)
         if edac_init:
             # init as in the EDAC paper
             for layer in self.critic[::3]:
@@ -269,7 +272,8 @@ class LBSAC:
 
         return loss
 
-    def update(self, batch: ReplayBuffer, used_inputs: List[str]) -> Dict[str, float]:
+    def update(self, batch: ReplayBuffer, used_inputs: List[str]) -> Dict[
+        str, float]:
         state, action, reward, next_state, done = batch.to_tensor(
             self.device,
             used_inputs,
@@ -349,7 +353,8 @@ def make_trainer(algo_config, state_dim, action_dim, device, **kwargs):
     # Actor & Critic setup
     actor = Actor(
         state_dim, action_dim, algo_config.hidden_dim, algo_config.edac_init,
-        algo_config.max_action
+        algo_config.max_action,
+        n_layers=algo_config.actor_n_layers,
     )
     actor.to(device)
     actor_optimizer = torch.optim.Adam(actor.parameters(),
@@ -361,6 +366,7 @@ def make_trainer(algo_config, state_dim, action_dim, device, **kwargs):
         algo_config.num_critics,
         algo_config.critic_layernorm,
         algo_config.edac_init,
+        n_layers=algo_config.critic_n_layers,
     )
     critic.to(device)
     critic_optimizer = torch.optim.Adam(

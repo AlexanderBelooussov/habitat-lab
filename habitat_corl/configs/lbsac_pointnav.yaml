@@ -44,6 +44,8 @@ RL:
     load_full_dataset: True
     ignore_stop: True
     single_goal: True
+    actor_n_layers: 6
+    critic_n_layers: 6
 
 # Wandb logging
 PROJECT: "habitat"
