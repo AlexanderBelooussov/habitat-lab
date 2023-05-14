@@ -14,13 +14,14 @@ from tqdm import trange
 
 class DepthLoader():
     def __init__(self, model_config, task_config, observation_space):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.depth_encoder = VlnResnetDepthEncoder(
             observation_space,
             output_size=model_config.DEPTH_ENCODER.output_size,
             checkpoint=model_config.DEPTH_ENCODER.ddppo_checkpoint,
             backbone=model_config.DEPTH_ENCODER.backbone,
             trainable=model_config.DEPTH_ENCODER.trainable,
-        )
+        ).to(self.device)
         self.sim = make_sim(id_sim=task_config.SIMULATOR.TYPE,
                             config=task_config.SIMULATOR)
 
@@ -45,7 +46,7 @@ class DepthLoader():
         observations["depth"] = np.expand_dims(observations["depth"], 0)
         observations["depth"] = torch.from_numpy(
             np.expand_dims(observations["depth"], -1)
-        ).float()
+        ).float().to(self.device)
         depth_encoding = self.depth_encoder(observations)[0].detach().numpy()
         return depth_encoding
 
