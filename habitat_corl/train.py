@@ -38,8 +38,6 @@ dataset_dict = {
 }
 def main():
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    if device == "cuda:0":
-        tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -112,6 +110,9 @@ def main():
     scene = args.scene
     comment = args.comment
     group = args.group
+
+    if device == "cuda:0" and scene != "debug":
+        tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
 
     if task == "pointnavdepth":
         base_config = "configs/tasks/pointnav_mp3d_depth.yaml"

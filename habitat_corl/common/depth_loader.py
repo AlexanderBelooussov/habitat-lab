@@ -57,6 +57,7 @@ class DepthLoader():
 
     def add_depth_to_dataset(self, dataset, next_state=False):
         depth_data = []
+        start = time.time()
         for i in trange(dataset.num_steps, desc="Adding depth to dataset"):
             position = dataset.states['position'][i]
             heading_vec = dataset.states['heading_vec'][i]
@@ -66,7 +67,7 @@ class DepthLoader():
             depth_encoding = self.get_depth_from_postion_rotation(position, rotation)
             depth_data.append(depth_encoding)
             if i % 10_000 == 0:
-                print(f"{time.time()}: {i} / {dataset.num_steps}")
+                print(f"{time.time()-start}: {i} / {dataset.num_steps}")
         dataset.states['depth'] = np.array(depth_data)
 
         if next_state:
