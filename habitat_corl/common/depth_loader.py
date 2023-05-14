@@ -39,15 +39,13 @@ class DepthLoader():
         self.sim.reset()
 
     def get_depth_from_state(self, current_state):
-        position = current_state.position
-        rotation = current_state.rotation
         self.sim.agents[0].set_state(current_state)
         observations = self.sim.get_sensor_observations()
         observations["depth"] = np.expand_dims(observations["depth"], 0)
         observations["depth"] = torch.from_numpy(
             np.expand_dims(observations["depth"], -1)
         ).float().to(self.device)
-        depth_encoding = self.depth_encoder(observations)[0].detach().numpy()
+        depth_encoding = self.depth_encoder(observations)[0].detach().cpu().numpy()
         return depth_encoding
 
     def get_depth_from_postion_rotation(self, position, rotation):
