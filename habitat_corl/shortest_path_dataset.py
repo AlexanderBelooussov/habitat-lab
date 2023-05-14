@@ -317,6 +317,7 @@ def generate_shortest_path_dataset(config, train_episodes=None,
     dataset_to_dhf5(dataset, config)
     return dataset
 
+
 def get_pickle_path(config, ignore_stop, single_goal, continuous):
     path = f"data/dataset"
     scene = config.DATASET.CONTENT_SCENES[0]
@@ -336,6 +337,8 @@ def get_pickle_path(config, ignore_stop, single_goal, continuous):
 
     path += ".pkl"
     return path
+
+
 def save_as_pickle(
     obj,
     config,
@@ -355,7 +358,6 @@ def save_as_pickle(
         "continuous": continuous,
         "obj": obj
     }
-
 
     with open(path, "wb") as f:
         pickle.dump(d, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -386,11 +388,10 @@ def check_pickles(
     return None
 
 
-
 def load_full_dataset(task_config, groups=None, datasets=None,
                       continuous=False, ignore_stop=False, single_goal=None,
                       frac=1.0, discount=0.99, max_episode_steps=1000,
-                      normalization_data=None):
+                      normalization_data=None, add_noise=True):
     if datasets is None:
         datasets = [
             "state_position",
@@ -400,12 +401,14 @@ def load_full_dataset(task_config, groups=None, datasets=None,
         ]
     # filter out depth and rgb as these are not stored in the hdf5
     if "state_rgb" in datasets or "state_depth" in datasets:
-        datasets = [dataset for dataset in datasets if dataset not in ["state_rgb", "state_depth"]]
+        datasets = [dataset for dataset in datasets if
+                    dataset not in ["state_rgb", "state_depth"]]
         # add position becuase we need it to get the rgb and depth from the simulator
         if "state_position" not in datasets:
             datasets.append("state_position")
     if "next_state_rgb" in datasets or "next_state_depth" in datasets:
-        datasets = [dataset for dataset in datasets if dataset not in ["next_state_rgb", "next_state_depth"]]
+        datasets = [dataset for dataset in datasets if
+                    dataset not in ["next_state_rgb", "next_state_depth"]]
         if "next_state_position" not in datasets:
             datasets.append("next_state_position")
 
@@ -442,7 +445,7 @@ def load_full_dataset(task_config, groups=None, datasets=None,
           f"Number of transitions: {rpb.num_steps}\n"
           f"Number of episodes: {rpb.num_episodes}\n")
     if continuous:
-        rpb.to_continuous_actions()
+        rpb.to_continuous_actions(add_noise=add_noise)
 
     rpb.to_numpy()
 
@@ -576,12 +579,16 @@ def batch_generator(
         ignore_stop = True
     if depth:
         if not hasattr(config, "MODEL"):
-            raise ValueError("Model config required for depth, pass config to batch generator instead of config.TASK_CONFIG")
+            raise ValueError(
+                "Model config required for depth, pass config to batch generator instead of config.TASK_CONFIG")
         depth_loader = DepthLoader(
             model_config=config.MODEL,
             task_config=config.TASK_CONFIG,
             observation_space=observation_space
         )
+    add_noise = True
+    if hasattr(config, "add_noise"):
+        add_noise = config.add_noise
     dataset = load_full_dataset(task_config=task_config,
                                 groups=groups, datasets=datasets,
                                 continuous=continuous,
@@ -589,7 +596,8 @@ def batch_generator(
                                 single_goal=single_goal, frac=frac,
                                 discount=discount,
                                 max_episode_steps=max_episode_steps,
-                                normalization_data=normalization_data)
+                                normalization_data=normalization_data,
+                                add_noise=add_noise,)
     if depth:
         dataset = depth_loader.add_depth_to_dataset(
             dataset,
@@ -657,7 +665,8 @@ def calc_mean_std(config, groups=None, used_inputs=None):
             stats[ds] = (np.mean(all_data, axis=0), np.std(all_data, axis=0))
 
     if "state_heading_vec" in stats:
-        stats["state_heading_vec"] = (np.zeros(2, dtype=np.float32), np.ones(2, dtype=np.float32))
+        stats["state_heading_vec"] = (
+        np.zeros(2, dtype=np.float32), np.ones(2, dtype=np.float32))
     if "state_position" in stats and "state_goal_position" in stats:
         stats["state_goal_position"] = stats["state_position"]
 

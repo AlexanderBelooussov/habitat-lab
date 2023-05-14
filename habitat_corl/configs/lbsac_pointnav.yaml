@@ -16,6 +16,7 @@ NUM_PROCESSES: 1
 SENSORS: ["DEPTH_SENSOR"]
 CHECKPOINT_FOLDER: "data/new_checkpoints/lb_sac"
 SEED:  1  # Sets Gym, PyTorch and Numpy seeds
+add_noise: true
 
 RL:
   POLICY:
@@ -44,8 +45,8 @@ RL:
     load_full_dataset: True
     ignore_stop: True
     single_goal: True
-    actor_n_layers: 6
-    critic_n_layers: 6
+    actor_n_layers: 3
+    critic_n_layers: 3
 
 # Wandb logging
 PROJECT: "habitat"
