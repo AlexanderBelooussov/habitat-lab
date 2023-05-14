@@ -126,6 +126,7 @@ def wrap_env(
 
 ) -> gym.Env:
     used_inputs = model_config.used_inputs
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if used_inputs is None:
         used_inputs = ["postion", "heading", "pointgoal"]
     if "depth" in used_inputs:
@@ -135,13 +136,14 @@ def wrap_env(
             checkpoint=model_config.DEPTH_ENCODER.ddppo_checkpoint,
             backbone=model_config.DEPTH_ENCODER.backbone,
             trainable=model_config.DEPTH_ENCODER.trainable,
-        )
+        ).to(device)
 
     def state_to_vector(state):
         if "depth" in used_inputs:
-            state["depth"] = torch.from_numpy(np.expand_dims(state["depth"], 0))
+            state["depth"] = torch.from_numpy(np.expand_dims(state["depth"], 0)).to(
+                device)
             depth_encoding = depth_encoder(state)
-            state["depth"] = depth_encoding[0].detach().numpy()
+            state["depth"] = depth_encoding[0].detach().cpu().numpy()
         return np.concatenate([state[key] for key in used_inputs], axis=-1)
 
     def normalize_state(state):
