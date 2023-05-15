@@ -375,7 +375,7 @@ class ReplayBuffer:
         return size
 
 
-    def to_continuous_actions(self, forward=0.25, turn=30):
+    def to_continuous_actions(self, forward=0.25, turn=30, add_noise=True):
         def add_noise_to_vec(vec):
             rad_angle = np.arctan2(vec[1], vec[0])
             return normalize_angle([rad_angle])
@@ -386,7 +386,7 @@ class ReplayBuffer:
             # keep in range [-pi, pi]
             # and make sure it does not turn more than turn/2
             turn_rad = np.deg2rad(turn)
-            noise = np.random.normal(0, turn_rad / 4)
+            noise = np.random.normal(0, turn_rad / 4) if add_noise else 0.0
             noise = np.clip(noise, -turn_rad / 2, turn_rad / 2)
             a += noise
             if a > np.pi:
