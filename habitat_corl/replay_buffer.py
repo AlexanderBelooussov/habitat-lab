@@ -386,7 +386,7 @@ class ReplayBuffer:
             # keep in range [-pi, pi]
             # and make sure it does not turn more than turn/2
             turn_rad = np.deg2rad(turn)
-            noise = np.random.normal(0, turn_rad / 4) if add_noise else 0.0
+            noise = np.random.normal(0, turn_rad / 8) if add_noise else 0.0
             noise = np.clip(noise, -turn_rad / 2, turn_rad / 2)
             a += noise
             if a > np.pi:
