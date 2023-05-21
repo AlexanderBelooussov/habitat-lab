@@ -391,7 +391,7 @@ def check_pickles(
 def load_full_dataset(task_config, groups=None, datasets=None,
                       continuous=False, ignore_stop=False, single_goal=None,
                       frac=1.0, discount=0.99, max_episode_steps=1000,
-                      normalization_data=None, add_noise=True):
+                      normalization_data=None, noise=0.25):
     if datasets is None:
         datasets = [
             "state_position",
@@ -445,7 +445,7 @@ def load_full_dataset(task_config, groups=None, datasets=None,
           f"Number of transitions: {rpb.num_steps}\n"
           f"Number of episodes: {rpb.num_episodes}\n")
     if continuous:
-        rpb.to_continuous_actions(add_noise=add_noise)
+        rpb.to_continuous_actions(add_noise=noise)
 
     rpb.to_numpy()
 
@@ -586,9 +586,9 @@ def batch_generator(
             task_config=config.TASK_CONFIG,
             observation_space=observation_space
         )
-    add_noise = True
-    if hasattr(config, "add_noise"):
-        add_noise = config.add_noise
+    add_noise = 0.25
+    if hasattr(config, "noise"):
+        add_noise = config.noise
     dataset = load_full_dataset(task_config=task_config,
                                 groups=groups, datasets=datasets,
                                 continuous=continuous,
@@ -597,7 +597,7 @@ def batch_generator(
                                 discount=discount,
                                 max_episode_steps=max_episode_steps,
                                 normalization_data=normalization_data,
-                                add_noise=add_noise,)
+                                noise=add_noise,)
     if depth:
         dataset = depth_loader.add_depth_to_dataset(
             dataset,

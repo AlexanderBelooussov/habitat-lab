@@ -106,8 +106,9 @@ def main():
         help="Number of layers for the network, -1 for default",
     )
     parser.add_argument(
-        "--no_noise",
-        action="store_true",
+        "--noise",
+        type=float,
+        default=0.25,
     )
 
     args = parser.parse_args()
@@ -121,7 +122,7 @@ def main():
     comment = args.comment
     group = args.group
     n_layers = args.n_layers
-    add_noise = not args.no_noise
+    noise = args.noise
 
     if device == "cuda:0" and scene != "debug":
         tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
@@ -254,7 +255,7 @@ def main():
     config.algorithm = algorithm
     config.CHECKPOINT_FOLDER += f"/{config.GROUP}/{config.NAME}/{config.SEED}"
 
-    config.add_noise = add_noise
+    config.noise = noise
 
     config.freeze()
     register_new_sensors(config.TASK_CONFIG)
