@@ -22,6 +22,7 @@ import wandb
 import habitat
 from habitat.utils.visualizations.utils import images_to_video, \
     observations_to_image, append_text_to_image
+from habitat_corl.common.depth_loader import DepthLoader
 from habitat_corl.common.utils import restructure_results, train_eval_split, \
     set_seed, wandb_init, remove_unreachable
 from habitat_corl.common.wrappers import wrap_env
@@ -34,9 +35,9 @@ from habitat_baselines.config.default import get_config
 def strin_to_tuple(string, dtype):
     # https://www.geeksforgeeks.org/python-convert-tuple-string-to-integer-tuple/ # noqa
     return tuple(dtype(num) for num in
-          string.replace('(', '').replace(')', '').replace('...',
-                                                          '').split(
-              ', '))
+                 string.replace('(', '').replace(')', '').replace('...',
+                                                                  '').split(
+                     ', '))
 
 
 # some utils functionalities specific for Decision Transformer
@@ -63,7 +64,7 @@ def discounted_cumsum(x: np.ndarray, gamma: float) -> np.ndarray:
 
 def load_trajectories(
     config, gamma: float = 1.0, groups=None, used_inputs=None, action_dim=4,
-    single_goal=None
+    single_goal=None, observation_space=None
 ) -> Tuple[List[DefaultDict[str, np.ndarray]], Dict[str, Any]]:
     if used_inputs is None:
         used_inputs = ["postion", "heading", "pointgoal"]
@@ -91,15 +92,25 @@ def load_trajectories(
             )
             i += 1
     traj, traj_len = [], []
-
+    datasets = ["action", "done", "reward"] + \
+               [f"state_{key}" for key in
+                used_inputs] + \
+               [f"next_state_{key}" for key in
+                used_inputs]
     buffer = load_full_dataset(config.TASK_CONFIG, groups=groups,
-                               datasets=["action", "done", "reward"] + \
-                                        [f"state_{key}" for key in
-                                         used_inputs] + \
-                                        [f"next_state_{key}" for key in
-                                         used_inputs],
+                               datasets=datasets,
                                ignore_stop=config.RL.DT.ignore_stop,
                                single_goal=single_goal)
+    if "state_depth" in datasets:
+        depth_loader = DepthLoader(
+            model_config=config.MODEL,
+            task_config=config.TASK_CONFIG,
+            observation_space=observation_space,
+        )
+        buffer = depth_loader.add_depth_to_dataset(
+            buffer,
+            next_state=True if "next_state_depth" in datasets else False,
+        )
 
     data_, episode_step = defaultdict(list), 0
     for episode_step in range(buffer.num_steps):
@@ -114,7 +125,7 @@ def load_trajectories(
         data_["rewards"].append(buffer.rewards[episode_step])
         episode_id = buffer.episode_ids[episode_step]
         if episode_step == buffer.num_steps - 1 or \
-                buffer.episode_ids[episode_step + 1] != episode_id:
+            buffer.episode_ids[episode_step + 1] != episode_id:
             episode_data = {k: np.array(v, dtype=np.float32) for k, v in
                             data_.items()}
             # return-to-go if gamma=1.0, just discounted returns else
@@ -156,13 +167,14 @@ def load_trajectories(
 class SequenceDataset(IterableDataset):
     def __init__(self, config, seq_len: int = 10,
                  reward_scale: float = 1.0, action_dim=4, groups=None,
-                 single_goal=None):
+                 single_goal=None, observation_space=None):
         self.dataset, info = load_trajectories(
             config, gamma=1.0,
             used_inputs=config.MODEL.used_inputs,
             action_dim=action_dim,
             groups=groups,
-            single_goal=single_goal
+            single_goal=single_goal,
+            observation_space=observation_space
         )
         self.reward_scale = reward_scale
         self.seq_len = seq_len
@@ -360,8 +372,9 @@ class DecisionTransformer(nn.Module):
         out = self.action_head(out[:, 1::3]) * self.max_action
         return out
 
-
     # Training and evaluation logic
+
+
 @torch.no_grad()
 def eval_rollout(
     model: DecisionTransformer,
@@ -447,7 +460,8 @@ def eval_rollout(
         episode_len += 1
 
         if ignore_stop:
-            if info["distance_to_goal"] < success_distance and not env.episode_over:
+            if info[
+                "distance_to_goal"] < success_distance and not env.episode_over:
                 env.step(-1)
                 info = env.get_metrics()
                 if video:
@@ -478,20 +492,24 @@ def train(config):
         single_goal=dt_config.single_goal,
     )
     env.episodes = eval_episodes
+
     def ep_iter(eval_episodes):
         while True:
             for ep in eval_episodes:
                 yield ep
+
     env.episode_iterator = ep_iter(eval_episodes)
 
-    goal = eval_episodes[0].goals[0].position if dt_config.single_goal else None
+    goal = eval_episodes[0].goals[
+        0].position if dt_config.single_goal else None
     # data & dataloader setup
     dataset = SequenceDataset(
         config, seq_len=dt_config.seq_len,
         reward_scale=dt_config.reward_scale,
-        action_dim=4-int(dt_config.ignore_stop),
+        action_dim=4 - int(dt_config.ignore_stop),
         groups=train_episodes,
-        single_goal=goal
+        single_goal=goal,
+        observation_space=env.observation_space,
     )
     trainloader = DataLoader(
         dataset,
@@ -589,7 +607,8 @@ def train(config):
         if step % dt_config.eval_every == 0 or step == dt_config.update_steps - 1:
             model.eval()
             if isinstance(dt_config.target_returns, str):
-                target_returns = strin_to_tuple(dt_config.target_returns, float)
+                target_returns = strin_to_tuple(dt_config.target_returns,
+                                                float)
             else:
                 target_returns = dt_config.target_returns
             for target_return in target_returns:
@@ -602,7 +621,7 @@ def train(config):
                         env=eval_env,
                         target_return=target_return * dt_config.reward_scale,
                         device=device,
-                        video=step==dt_config.update_steps-1,
+                        video=step == dt_config.update_steps - 1,
                         video_dir=config.VIDEO_DIR,
                         video_prefix=f"dt/{int(target_return)}/dt",
                         eval_iteration=i,
@@ -615,8 +634,10 @@ def train(config):
                 for key in eval_scores:
                     wandb.log(
                         {
-                            f"{int(target_return)}/eval/{key}_mean": np.mean(eval_scores[key]),
-                            f"{int(target_return)}/eval/{key}_std": np.std(eval_scores[key])
+                            f"{int(target_return)}/eval/{key}_mean": np.mean(
+                                eval_scores[key]),
+                            f"{int(target_return)}/eval/{key}_std": np.std(
+                                eval_scores[key])
                         },
                         step=step,
                     )
