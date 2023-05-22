@@ -590,10 +590,12 @@ def batch_generator(
     if hasattr(config, "noise"):
         add_noise = config.noise
     dataset = load_full_dataset(task_config=task_config,
-                                groups=groups, datasets=datasets,
+                                groups=groups,
+                                datasets=datasets,
                                 continuous=continuous,
                                 ignore_stop=ignore_stop,
-                                single_goal=single_goal, frac=frac,
+                                single_goal=single_goal,
+                                frac=frac,
                                 discount=discount,
                                 max_episode_steps=max_episode_steps,
                                 normalization_data=normalization_data,
