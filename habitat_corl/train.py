@@ -110,6 +110,12 @@ def main():
         type=float,
         default=0.25,
     )
+    parser.add_argument(
+        "--n_updates",
+        type=int,
+        default=1_000_000,
+        help="Number of updates to run",
+    )
 
     args = parser.parse_args()
 
@@ -123,6 +129,7 @@ def main():
     group = args.group
     n_layers = args.n_layers
     noise = args.noise
+    n_updates = args.n_updates
 
     if device == "cuda:0" and scene != "debug":
         tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
@@ -137,12 +144,14 @@ def main():
         config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.SAC_N
+        algo_config.num_epochs = n_updates / algo_config.num_updates_on_epoch
 
     elif algorithm == "dt":
         config = "habitat_corl/configs/dt_pointnav.yaml"
         config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.DT
+        algo_config.update_steps = n_updates
 
     elif algorithm == "bc" or algorithm == "bc10":
         config = "habitat_corl/configs/bc_pointnav.yaml"
@@ -152,33 +161,39 @@ def main():
         if algorithm == "bc10":
             algo_config.FRAC = 0.1
             config.NAME += "-10"
+        algo_config.num_updates = n_updates
     elif algorithm == "td3bc":
         config = "habitat_corl/configs/td3_bc_pointnav.yaml"
         config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.TD3_BC
+        algo_config.max_timesteps = n_updates
     elif algorithm == "td3bcd":
         config = "habitat_corl/configs/td3_bc_d_pointnav.yaml"
         config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.TD3_BC
         algo_config.continuous = False
+        algo_config.max_timesteps = n_updates
     elif algorithm == "iql":
         config = "habitat_corl/configs/iql_pointnav.yaml"
         config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.IQL
+        algo_config.max_timesteps = n_updates
     elif algorithm == "edac":
         config = "habitat_corl/configs/edac_pointnav.yaml"
         config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.EDAC
+        algo_config.num_epochs = n_updates / algo_config.num_updates_on_epoch
     elif algorithm == "sacnd":
         config = "habitat_corl/configs/sacnd_pointnav.yaml"
         config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.SAC_N
         algo_config.continuous = False
+        algo_config.num_epochs = n_updates / algo_config.num_updates_on_epoch
     elif algorithm == "random":
         config = "habitat_corl/configs/random_pointnav.yaml"
         config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
@@ -189,6 +204,7 @@ def main():
         config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.CQL
+        algo_config.max_timesteps = n_updates
     # elif algorithm == "cqld":
     #     config = "habitat_corl/configs/cql_d_pointnav.yaml"
     #     config = get_config(config, [])
@@ -199,6 +215,7 @@ def main():
         config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.LB_SAC
+        algo_config.num_epochs = n_updates / algo_config.num_updates_on_epoch
     else:
         raise ValueError("Invalid algorithm/task combination")
 

@@ -63,7 +63,7 @@ def plot_heatmap(sp_ds, web_ds, scene, web_dataset, no_sp):
     heatmap[heatmap == 0] = None
 
     plt.clf()
-    im = plt.imshow(heatmap.T, extent=extent, origin='lower', norm=LogNorm())
+    im = plt.imshow(heatmap.T, extent=extent, origin='lower', norm=LogNorm(vmin=1, vmax=2e4))
     ax = plt.gca()
     if scene in ["medium", "large"]:
         ax.invert_yaxis()
@@ -124,9 +124,9 @@ def main():
 
 
 if __name__ == "__main__":
-    # for scene in ["small", "medium", "large", "xl"]:
-    for scene in ["medium"]:
+    for scene in ["small", "medium", "large", "xl"]:
+    # for scene in ["medium"]:
         sp, web = load_datasets(scene)
-        # for web_dataset in [True, False]:
-        #     plot_heatmap(sp, web, scene, web_dataset, False)
-        # plot_heatmap(sp, web, scene, True, True)
+        for web_dataset in [True, False]:
+            plot_heatmap(sp, web, scene, web_dataset, False)
+        plot_heatmap(sp, web, scene, True, True)

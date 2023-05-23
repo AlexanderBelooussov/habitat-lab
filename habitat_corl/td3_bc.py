@@ -361,13 +361,13 @@ def train(config):
                 )
                 eval_scores = remove_unreachable(eval_scores)
                 evaluations.append(eval_scores)
-                print("---------------------------------------")
-                print(
-                    f"Evaluation over {algo_config.eval_episodes} episodes: "
-                )
-                for key in eval_scores:
-                    print(f"{key}: {np.mean(eval_scores[key])}")
-                print("---------------------------------------")
+                # print("---------------------------------------")
+                # print(
+                #     f"Evaluation over {algo_config.eval_episodes} episodes: "
+                # )
+                # for key in eval_scores:
+                #     print(f"{key}: {np.mean(eval_scores[key])}")
+                # print("---------------------------------------")
                 torch.save(
                     trainer.state_dict(),
                     os.path.join(config.CHECKPOINT_FOLDER,
