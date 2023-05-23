@@ -225,7 +225,7 @@ def train(config):
         wandb.watch(actor, log="all")
         evaluations = []
         batch_gen = batch_generator(
-            config.TASK_CONFIG,
+            config,
             n_transitions=config.RL.BC.batch_size,
             groups=train_episodes,
             use_full_dataset=config.RL.BC.load_full_dataset,
