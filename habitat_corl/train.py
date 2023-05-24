@@ -113,8 +113,14 @@ def main():
     parser.add_argument(
         "--n_updates",
         type=int,
-        default=1_000_000,
+        default=-1,
         help="Number of updates to run",
+    )
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=-1,
+        help="Learning rate",
     )
 
     args = parser.parse_args()
@@ -130,6 +136,10 @@ def main():
     n_layers = args.n_layers
     noise = args.noise
     n_updates = args.n_updates
+    if n_updates == -1:
+        if algorithm == "dt": n_updates = 100_000
+        else: n_updates = 1_000_000
+    lr = args.lr
 
     if device == "cuda:0" and scene != "debug":
         tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
@@ -144,7 +154,7 @@ def main():
         config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.SAC_N
-        algo_config.num_epochs = n_updates / algo_config.num_updates_on_epoch
+        algo_config.num_epochs = int(n_updates / algo_config.num_updates_on_epoch)
 
     elif algorithm == "dt":
         config = "habitat_corl/configs/dt_pointnav.yaml"
@@ -186,14 +196,14 @@ def main():
         config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.EDAC
-        algo_config.num_epochs = n_updates / algo_config.num_updates_on_epoch
+        algo_config.num_epochs = int(n_updates / algo_config.num_updates_on_epoch)
     elif algorithm == "sacnd":
         config = "habitat_corl/configs/sacnd_pointnav.yaml"
         config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.SAC_N
         algo_config.continuous = False
-        algo_config.num_epochs = n_updates / algo_config.num_updates_on_epoch
+        algo_config.num_epochs = int(n_updates / algo_config.num_updates_on_epoch)
     elif algorithm == "random":
         config = "habitat_corl/configs/random_pointnav.yaml"
         config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
@@ -215,7 +225,7 @@ def main():
         config = get_config(config, ["BASE_TASK_CONFIG_PATH", base_config])
         config.defrost()
         algo_config = config.RL.LB_SAC
-        algo_config.num_epochs = n_updates / algo_config.num_updates_on_epoch
+        algo_config.num_epochs = int(n_updates / algo_config.num_updates_on_epoch)
     else:
         raise ValueError("Invalid algorithm/task combination")
 
@@ -252,6 +262,12 @@ def main():
         algo_config.n_layers = n_layers
         algo_config.n_actor_layers = n_layers
         algo_config.n_critic_layers = n_layers
+
+    if lr != -1:
+        algo_config.learning_rate = lr
+        algo_config.critic_learning_rate = lr
+        algo_config.actor_learning_rate = lr
+        algo_config.alpha_learning_rate = lr
 
     config.TASK_CONFIG.DATASET.SP_DATASET_PATH = dataset_dict[scene]
     if args.web_dataset:
