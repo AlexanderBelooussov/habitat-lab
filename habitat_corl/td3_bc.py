@@ -297,7 +297,7 @@ def train(config):
         )
 
         batch_gen = batch_generator(
-            task_config,
+            config,
             n_transitions=algo_config.batch_size,
             groups=train_episodes,
             use_full_dataset=algo_config.load_full_dataset,
@@ -306,7 +306,9 @@ def train(config):
                      ["action", "reward", "done"],
             continuous=True,
             single_goal=get_goal(algo_config, eval_episodes),
-            normalization_data=mean_std
+            normalization_data=mean_std,
+            observation_space=env.observation_space,
+            depth=True if "depth" in config.MODEL.used_inputs else False,
         )
 
         max_action = float(env.action_space.high[0])
