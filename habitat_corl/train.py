@@ -122,6 +122,12 @@ def main():
         default=-1,
         help="Learning rate",
     )
+    parser.add_argument(
+        "--tau",
+        type=float,
+        default=-1,
+        help="Tau for soft updates",
+    )
 
     args = parser.parse_args()
 
@@ -140,6 +146,7 @@ def main():
         if algorithm == "dt": n_updates = 100_000
         else: n_updates = 1_000_000
     lr = args.lr
+    tau = args.tau
 
     if device == "cuda:0" and scene != "debug":
         tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
@@ -268,6 +275,8 @@ def main():
         algo_config.critic_learning_rate = lr
         algo_config.actor_learning_rate = lr
         algo_config.alpha_learning_rate = lr
+    if tau != -1:
+        algo_config.tau = tau
 
     config.TASK_CONFIG.DATASET.SP_DATASET_PATH = dataset_dict[scene]
     if args.web_dataset:
