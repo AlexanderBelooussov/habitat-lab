@@ -50,7 +50,7 @@ def train(config):
 
     with wrap_env(
         habitat.Env(config=task_config),
-        used_inputs=config.MODEL.used_inputs,
+        model_config=config.MODEL,
         continuous=algo_config.continuous,
         ignore_stop=algo_config.ignore_stop,
         turn_angle=task_config.SIMULATOR.TURN_ANGLE,

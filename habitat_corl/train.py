@@ -128,6 +128,11 @@ def main():
         default=-1,
         help="Tau for soft updates",
     )
+    parser.add_argument(
+        "--blind",
+        action="store_true",
+        help="Use blind agent (in PointNavDepth)",
+    )
 
     args = parser.parse_args()
 
@@ -147,6 +152,7 @@ def main():
         else: n_updates = 1_000_000
     lr = args.lr
     tau = args.tau
+    blind = args.blind
 
     if device == "cuda:0" and scene != "debug":
         tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
@@ -255,9 +261,12 @@ def main():
     elif task == "pointnavdepth":
         config.GROUP = f"PointNavDepth_{scene}"
         algo_config.single_goal = False
-        config.MODEL.used_inputs = ["depth", "pointgoal_with_gps_compass",
+        if blind:
+            config.MODEL.used_inputs = ["pointgoal_with_gps_compass",
+                                        "heading_vec"]
+        else:
+            config.MODEL.used_inputs = ["depth", "pointgoal_with_gps_compass",
                                     "heading_vec"]
-        config.BASE_TASK_CONFIG_PATH = "configs/tasks/pointnav_mp3d_depth.yaml"
     elif task == "pointnav":
         config.GROUP = f"PointNav_{scene}"
         algo_config.single_goal = False
@@ -277,6 +286,7 @@ def main():
         algo_config.alpha_learning_rate = lr
     if tau != -1:
         algo_config.tau = tau
+
 
     config.TASK_CONFIG.DATASET.SP_DATASET_PATH = dataset_dict[scene]
     if args.web_dataset:
