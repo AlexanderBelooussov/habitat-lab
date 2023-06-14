@@ -31,7 +31,7 @@ RL:
     critic_learning_rate: 0.0018
     edac_init: false
     eval_episodes: 100
-    eval_every: 1
+    eval_every: 5
     gamma: 0.99
     hidden_dim: 256
     max_action: 1.0

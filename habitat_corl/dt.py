@@ -2,18 +2,15 @@
 # 1. https://github.com/kzl/decision-transformer/blob/master/gym/decision_transformer/models/decision_transformer.py  # noqa
 # 2. https://github.com/karpathy/minGPT
 import argparse
-from typing import Any, DefaultDict, Dict, List, Optional, Tuple, Union
+from typing import Any, DefaultDict, Dict, List, Optional, Tuple
 from collections import defaultdict
-from dataclasses import asdict, dataclass
 import os
 import random
-import uuid
 
 import gym  # noqa
 import numpy as np
 import torch
 import torch.nn as nn
-from gym import ObservationWrapper
 from torch.nn import functional as F  # noqa
 from torch.utils.data import DataLoader, IterableDataset
 from tqdm.auto import tqdm, trange  # noqa
@@ -26,9 +23,8 @@ from habitat_corl.common.depth_loader import DepthLoader
 from habitat_corl.common.utils import restructure_results, train_eval_split, \
     set_seed, wandb_init, remove_unreachable
 from habitat_corl.common.wrappers import wrap_env
-from habitat_corl.replay_buffer import get_input_dims, ReplayBuffer
-from habitat_corl.shortest_path_dataset import calc_mean_std, \
-    get_stored_groups, register_new_sensors, load_full_dataset
+from habitat_corl.common.replay_buffer import get_input_dims, ReplayBuffer
+from habitat_corl.common.shortest_path_dataset import get_stored_groups, register_new_sensors, load_full_dataset
 from habitat_baselines.config.default import get_config
 
 

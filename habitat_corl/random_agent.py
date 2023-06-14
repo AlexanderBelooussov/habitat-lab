@@ -1,30 +1,19 @@
 # source: https://github.com/sfujim/TD3_BC
 # https://arxiv.org/pdf/2106.06860.pdf
 import argparse
-from typing import Any, Dict, List, Optional, Tuple, Union
-import copy
-from dataclasses import asdict, dataclass
-import os
-from pathlib import Path
-import random
-import uuid
+from typing import List
 
-import gym
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import wandb
-from tqdm import trange
 
 import habitat
 from habitat_baselines.config.default import get_config
-from habitat_corl.common.utils import restructure_results, train_eval_split, \
-    eval_actor, wandb_init, set_seed, get_goal
+from habitat_corl.common.utils import train_eval_split, \
+    eval_actor, set_seed
 from habitat_corl.common.wrappers import wrap_env
-from habitat_corl.replay_buffer import get_input_dims, ReplayBuffer
-from habitat_corl.shortest_path_dataset import register_new_sensors, \
-    calc_mean_std, batch_generator
+from habitat_corl.common.shortest_path_dataset import register_new_sensors
 
 TensorBatch = List[torch.Tensor]
 

@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from habitat.utils.visualizations.utils import images_to_video, \
     observations_to_image, append_text_to_image
-from habitat_corl.shortest_path_dataset import get_stored_episodes
+from habitat_corl.common.shortest_path_dataset import get_stored_episodes
 
 
 def restructure_results(info_list: List[Dict[str, Any]]) -> Dict[str, Any]:

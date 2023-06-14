@@ -3,15 +3,11 @@
 # 2. implementation: https://github.com/tinkoff-ai/lb-sac
 import argparse
 import faulthandler
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 from copy import deepcopy
-from dataclasses import asdict, dataclass
 import math
 import os
-import random
-import uuid
 
-import gym
 import numpy as np
 import torch
 from torch.distributions import Normal
@@ -24,8 +20,8 @@ from habitat_baselines.config.default import get_config
 from habitat_corl.common.utils import train_eval_split, \
     set_seed, wandb_init, eval_actor, get_goal, remove_unreachable
 from habitat_corl.common.wrappers import wrap_env
-from habitat_corl.replay_buffer import ReplayBuffer, get_input_dims
-from habitat_corl.shortest_path_dataset import register_new_sensors, \
+from habitat_corl.common.replay_buffer import ReplayBuffer, get_input_dims
+from habitat_corl.common.shortest_path_dataset import register_new_sensors, \
     calc_mean_std, batch_generator
 
 # general utils

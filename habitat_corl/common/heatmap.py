@@ -5,9 +5,9 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.colors import LogNorm
 from habitat_baselines.config.default import get_config
-from habitat_corl.shortest_path_dataset import load_full_dataset, \
+from habitat_corl.common.shortest_path_dataset import load_full_dataset, \
     get_stored_groups
-from habitat_corl.train import scene_dict, dataset_dict
+from habitat_corl.scripts.train import scene_dict, dataset_dict
 
 
 def load_datasets(scene):
@@ -124,8 +124,8 @@ def main():
 
 
 if __name__ == "__main__":
-    for scene in ["small", "medium", "large", "xl"]:
-    # for scene in ["medium"]:
+    # for scene in ["small", "medium", "large", "xl"]:
+    for scene in ["small"]:
         sp, web = load_datasets(scene)
         for web_dataset in [True, False]:
             plot_heatmap(sp, web, scene, web_dataset, False)

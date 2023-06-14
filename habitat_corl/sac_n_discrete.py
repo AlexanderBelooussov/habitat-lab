@@ -7,32 +7,25 @@ import argparse
 import faulthandler
 import math
 import os
-import random
-import uuid
 from copy import deepcopy
 # The only difference from the original implementation:
 # default pytorch weight initialization,
 # without custom rlkit init & uniform init for last layers.
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
-import gym
 import numpy as np
 import torch
 import torch.nn as nn
 import wandb
-from torch.distributions import Normal
-from tqdm import tqdm
 from tqdm import trange
 
 import habitat
-from habitat.utils.visualizations.utils import images_to_video, \
-    observations_to_image
 from habitat_baselines.config.default import get_config
-from habitat_corl.common.utils import restructure_results, train_eval_split, \
+from habitat_corl.common.utils import train_eval_split, \
     set_seed, wandb_init, eval_actor, get_goal, remove_unreachable
 from habitat_corl.common.wrappers import wrap_env
-from habitat_corl.replay_buffer import ReplayBuffer, get_input_dims
-from habitat_corl.shortest_path_dataset import register_new_sensors, \
+from habitat_corl.common.replay_buffer import ReplayBuffer, get_input_dims
+from habitat_corl.common.shortest_path_dataset import register_new_sensors, \
     calc_mean_std, batch_generator
 
 # general utils

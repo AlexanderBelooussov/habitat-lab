@@ -1,21 +1,17 @@
 import argparse
-import copy
 import gc
 import pickle
 import sys
-from typing import Any, Union
+from typing import Any
 
 import vaex
 
 import habitat
-from habitat import registry, Config
+from habitat import registry
 from habitat.tasks.nav.nav import EpisodicGPSSensor, HeadingSensor
-from habitat.tasks.utils import cartesian_to_polar
-from habitat.utils.geometry_utils import quaternion_from_coeff, \
-    quaternion_rotate_vector
 from habitat_baselines.config.default import get_config
 from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
-from habitat_corl.replay_buffer import ReplayBuffer
+from habitat_corl.common.replay_buffer import ReplayBuffer
 from habitat_corl.common.depth_loader import DepthLoader
 from tqdm import tqdm
 import numpy as np

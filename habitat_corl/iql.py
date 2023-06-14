@@ -1,15 +1,11 @@
 # source: https://github.com/gwthomas/IQL-PyTorch
 # https://arxiv.org/pdf/2110.06169.pdf
 import argparse
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Tuple
 import copy
-from dataclasses import asdict, dataclass
 import os
 from pathlib import Path
-import random
-import uuid
 
-import gym
 import numpy as np
 import torch
 from torch.distributions import MultivariateNormal
@@ -24,8 +20,8 @@ from habitat_baselines.config.default import get_config
 from habitat_corl.common.wrappers import wrap_env
 from habitat_corl.common.utils import set_seed, wandb_init, train_eval_split, \
     get_goal, eval_actor, remove_unreachable
-from habitat_corl.replay_buffer import ReplayBuffer, get_input_dims
-from habitat_corl.shortest_path_dataset import register_new_sensors, \
+from habitat_corl.common.replay_buffer import ReplayBuffer, get_input_dims
+from habitat_corl.common.shortest_path_dataset import register_new_sensors, \
     calc_mean_std, batch_generator
 
 TensorBatch = List[torch.Tensor]

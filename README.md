@@ -7,6 +7,8 @@ Changes
   * python-lmdb needs to be installed via conda, pip will not work
 * Fixed issue in habitat-baselines/utils/env_utils.py
 * Configs for running on single scenes
+* Added Offline RL algorithms from https://github.com/tinkoff-ai/CORL
+* Added scripts for running and evaluating offline RL algorithms
 ___
 
 # Habitat-Web

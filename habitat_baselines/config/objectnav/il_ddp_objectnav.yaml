@@ -1,4 +1,4 @@
-# Note:  This is an example config, see habitat_baselines/config/pointnav/ppo_pointnav.yaml
+  # Note:  This is an example config, see habitat_baselines/config/pointnav/ppo_pointnav.yaml
 # for better hyperparameters for actual trainingsem_seg_pred
 
 BASE_TASK_CONFIG_PATH: "configs/tasks/objectnav_mp3d_il.yaml"

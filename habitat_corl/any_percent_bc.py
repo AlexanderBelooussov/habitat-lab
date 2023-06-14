@@ -1,13 +1,9 @@
 import argparse
 import os
-import random
-import uuid
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-import gym
-import h5py
 import numpy as np
 import torch
 import torch.nn as nn
@@ -17,14 +13,11 @@ import wandb
 from tqdm import tqdm
 
 import habitat
-from habitat.utils.visualizations.utils import images_to_video, \
-    observations_to_image
 from habitat_baselines.config.default import get_config
 from habitat_corl.common.wrappers import wrap_env
-from habitat_corl.replay_buffer import ReplayBuffer, get_input_dims
-from habitat_corl.shortest_path_dataset import sample_transitions, \
-    register_new_sensors, \
-    calc_mean_std, get_stored_episodes, batch_generator
+from habitat_corl.common.replay_buffer import ReplayBuffer, get_input_dims
+from habitat_corl.common.shortest_path_dataset import register_new_sensors, \
+    calc_mean_std, batch_generator
 from habitat_corl.common.utils import set_seed, wandb_init, eval_actor, \
     get_goal, train_eval_split, remove_unreachable
 

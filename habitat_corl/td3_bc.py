@@ -1,15 +1,11 @@
 # source: https://github.com/sfujim/TD3_BC
 # https://arxiv.org/pdf/2106.06860.pdf
 import argparse
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List
 import copy
-from dataclasses import asdict, dataclass
 import os
 from pathlib import Path
-import random
-import uuid
 
-import gym
 import numpy as np
 import torch
 import torch.nn as nn
@@ -19,11 +15,11 @@ from tqdm import trange
 
 import habitat
 from habitat_baselines.config.default import get_config
-from habitat_corl.common.utils import restructure_results, train_eval_split, \
+from habitat_corl.common.utils import train_eval_split, \
     eval_actor, wandb_init, set_seed, get_goal, remove_unreachable
 from habitat_corl.common.wrappers import wrap_env
-from habitat_corl.replay_buffer import get_input_dims, ReplayBuffer
-from habitat_corl.shortest_path_dataset import register_new_sensors, \
+from habitat_corl.common.replay_buffer import get_input_dims, ReplayBuffer
+from habitat_corl.common.shortest_path_dataset import register_new_sensors, \
     calc_mean_std, batch_generator
 
 TensorBatch = List[torch.Tensor]

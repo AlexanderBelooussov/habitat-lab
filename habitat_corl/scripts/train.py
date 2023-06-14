@@ -14,7 +14,7 @@ import habitat_corl.random_agent
 import habitat_corl.cql
 import habitat_corl.lb_sac
 from habitat_baselines.config.default import get_config
-from habitat_corl.shortest_path_dataset import register_new_sensors
+from habitat_corl.common.shortest_path_dataset import register_new_sensors
 
 from tqdm import tqdm
 from functools import partialmethod
